@@ -1,0 +1,1 @@
+alert(app.project.activeItem.selectedLayers[0].property("Source Text").value.font);
