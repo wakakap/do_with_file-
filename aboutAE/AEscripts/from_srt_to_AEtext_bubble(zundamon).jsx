@@ -120,7 +120,7 @@
         textDocument.justification = ParagraphJustification.CENTER_JUSTIFY; 
         textDocument.fillColor = textColor; // Set text color here
         textDocument.leading = 80; // 设置行高为 80 像素
-        textDocument.tracking = -100; // 设置字间距为 -100
+        textDocument.tracking = -90; // 设置字间距为 -100
         textDocument.applyStroke = true; // 启用描边
         textDocument.strokeWidth = 1; // 设置描边宽度为 1 像素
         textDocument.strokeOverFill = true; // 设置描边在填充之上

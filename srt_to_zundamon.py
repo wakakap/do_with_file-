@@ -1,3 +1,4 @@
+# 把srt_file_path中的日语字幕转换为音频文件，使用VOICEVOX引擎，保存到 OUTPUT_DIR 目录。以srt中为准，清除掉OUTPUT_DIR中不再使用的音频文件。
 import os
 import requests
 import time
@@ -11,8 +12,8 @@ VOICEVOX_URL = "http://localhost:50021"
 # Common IDs: 0 (四国めたん), 1 (ずんだもん) etc. Check VOICEVOX Engine /speakers or /docs for all IDs.
 DEFAULT_SPEAKER_ID = 1 
 # Output directory for generated audio files.
-OUTPUT_DIR = "E:\\抽吧唧\\1"
-srt_file_path = "E:\\抽吧唧\\1\\test.srt" # Make sure your SRT file is here or specify the correct path
+OUTPUT_DIR = "E:\\抽吧唧\\1\\voice"
+srt_file_path = "E:\\抽吧唧\\1\\jp.srt" # Make sure your SRT file is here or specify the correct path
 
 # --- Core VOICEVOX Interaction Functions ---
 
