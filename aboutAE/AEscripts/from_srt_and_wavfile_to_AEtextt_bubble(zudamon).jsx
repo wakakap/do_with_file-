@@ -1,20 +1,13 @@
 // 指定 WAV_FILES_FOLDER ，选择对应srt文件
 // 把一个音频文件夹中的所有形如 0001_*****.wav 的文件导入AE中首尾相接，相隔GAP_BETWEEN_SUBTITLES，然后把对应的srt中的文本也放到对应位置
 (function main() {
-    // --- Configuration ---
-    var FONT_NAME = 'Tanuki-Permanent-Marker';
+    // --- Configuration ---LXGWWenKai-Light Tanuki-Permanent-Marker
+    var FONT_NAME = 'LXGWWenKai-Light'; //
     var ANIMATION_DURATION = 0.12;
     var APPEAR_OVERDRIVE_SCALE = 110;
-    var TEXT_FONT_SIZE = 60;
+    var TEXT_FONT_SIZE = 70;
     var MIN_HOLD_DURATION = 0.01; // 字幕内容以100%大小稳定显示的最短时间 (针对SRT中时长极短或无效的情况)
     var GAP_BETWEEN_SUBTITLES = 0.2; // <<< NEW CONFIGURATION: Gap between subtitles in seconds
-
-    // --- NEW CONFIGURATION: WAV File Import ---
-    // IMPORTANT: Set the path to your WAV files folder.
-    // Example (Windows): 'C:/Your/Audio/Files/'
-    // Example (macOS): '/Users/YourUser/Documents/AudioFiles/'
-    // Make sure to use forward slashes for paths.
-    var WAV_FILES_FOLDER = 'E:\\抽吧唧\\1\\voice'; // <<< SET YOUR WAV FILES FOLDER PATH HERE!
 
     // --- Helper Function: Convert SRT time (HH:MM:SS,mmm) to seconds ---
     function srtTimeToSeconds(timeString) {
@@ -39,15 +32,10 @@
         return;
     }
 
-    // Check if WAV_FILES_FOLDER is set
-    if (WAV_FILES_FOLDER === '') {
-        alert("请在脚本配置中设置 'WAV_FILES_FOLDER' 变量为您存放 WAV 文件的文件夹路径！");
-        return;
-    }
-
-    var wavFolder = new Folder(WAV_FILES_FOLDER);
-    if (!wavFolder.exists) {
-        alert("指定的 WAV 文件文件夹不存在：\n" + WAV_FILES_FOLDER + "\n请检查路径是否正确。");
+    // --- NEW: Prompt user to select the WAV folder ---
+    var wavFolder = Folder.selectDialog("请选择包含 WAV 文件的文件夹");
+    if (wavFolder === null) {
+        alert("未选择 WAV 文件夹，脚本已取消。");
         return;
     }
 
@@ -79,7 +67,7 @@
         return;
     }
 
-    app.beginUndoGroup("导入SRT字幕、表达式动画和WAV导入 (V2.4 - WAV Timed with Gap)");
+    app.beginUndoGroup("导入SRT字幕、表达式动画和WAV导入 (V2.5 - Dynamic WAV Folder)");
     var compCenter = [comp.width / 2, comp.height / 2];
     var currentTime = 0; // Initialize current time for sequential placement
 
@@ -141,7 +129,7 @@
                 wavDuration = (2 * ANIMATION_DURATION + MIN_HOLD_DURATION); // Fallback duration
             }
         } else {
-            $.writeln("Warning: No matching WAV file found for subtitle " + sub.id + " with pattern " + expectedWavFilenamePattern + " in " + WAV_FILES_FOLDER + ". Text layer will use a default duration.");
+            $.writeln("Warning: No matching WAV file found for subtitle " + sub.id + " with pattern " + expectedWavFilenamePattern + " in " + wavFolder.fsName + ". Text layer will use a default duration.");
             wavDuration = (2 * ANIMATION_DURATION + MIN_HOLD_DURATION); // Assign a default duration if no WAV found
         }
 
@@ -230,6 +218,6 @@
     }
 
     app.endUndoGroup();
-    alert("SRT字幕导入、表达式动画和WAV导入 (V2.4 - WAV Timed with Gap) 完成！\n共创建 " + subtitles.length + " 个文本图层和对应的音频图层（如果找到）。");
+    alert("SRT字幕导入、表达式动画和WAV导入 (V2.5 - Dynamic WAV Folder) 完成！\n共创建 " + subtitles.length + " 个文本图层和对应的音频图层（如果找到）。");
 
 })();

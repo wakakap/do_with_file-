@@ -39,7 +39,7 @@ GPT_SOVITS_PARAMS = {
     "streaming_mode": False,
     "parallel_infer": True,
     "repetition_penalty": 1.35,
-    "sample_steps": 32,
+    "sample_steps": 16, #32
     "super_sampling": False,
 }
 
@@ -154,7 +154,7 @@ def generate_audio_for_text(text, output_path):
 
 
 def main():
-    srt_file_path = "E:\\抽吧唧\\2\\test.srt" #sys.argv[1]
+    srt_file_path = "E:\\抽吧唧\\2\\original_zh.srt" #sys.argv[1]
     output_dir = "E:\\抽吧唧\\2\\sub"
     
     # Create the output directory if it doesn't exist
@@ -180,7 +180,7 @@ def main():
         print(f"\n--- Processing subtitle {i+1}/{total_subtitles} (Index: {sub['index']}) ---")
         
         # Format the output filename with leading zeros (e.g., 001.wav, 002.wav)
-        output_filename = f"{sub['index'].zfill(3)}.wav"
+        output_filename = f"{sub['index'].zfill(4)}.wav"
         output_filepath = os.path.join(output_dir, output_filename)
         
         if generate_audio_for_text(sub['text'], output_filepath):
@@ -200,3 +200,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+    ####### 临时用
+    # text = "今天是个好日子"
+    # output_filepath = os.path.join("", f"{text}.wav")
+    # generate_audio_for_text(text, output_filepath)

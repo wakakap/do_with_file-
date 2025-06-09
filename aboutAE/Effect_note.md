@@ -58,7 +58,7 @@
 
 会返回一堆mask的路径。
 
-![alt text](./imgae/图层自动追踪.png)
+![alt text](./image/图层自动追踪.png)
 
 ## 环境图层
 
@@ -74,7 +74,7 @@
 
 配合杂色得到这样的效果。
 
-![alt text](./imgae/模板亮度.png)
+![alt text](./image/模板亮度.png)
 
 # 效果
 
@@ -88,15 +88,15 @@
 
 ### 网格 grid グリッド
 
-![alt text](./imgae/网格.png)
+![alt text](./image/网格.png)
 
 ### 音频波形，音频频谱
 
 应用在solid上。在特效里选择对应的音频。
-![alt text](./imgae/音频波形.png)
+![alt text](./image/音频波形.png)
 
 在solid里用钢笔创建蒙版（可以只是曲线），然后在特效里选择路径应用到该模板。
-![alt text](./imgae/音频频谱2.png)
+![alt text](./image/音频频谱2.png)
 
 ### 常用的渐变色背景 Gradient
 
@@ -112,11 +112,11 @@
 
 配合 [图层-边缘追踪](#%E8%87%AA%E5%8A%A8%E8%BF%BD%E8%B8%AA) 可以实现这样的效果：
 
-![alt text](./imgae/saber.png)
+![alt text](./image/saber.png)
 
 改变alpha mode 或者 mask反转，可以得到不同的效果。
 
-![alt text](./imgae/saber2.png)
+![alt text](./image/saber2.png)
 
 start offset 等参数可以用作制作变化动画。
 
@@ -124,11 +124,11 @@ start offset 等参数可以用作制作变化动画。
 
 ### 投影 drop shadow
 
-![alt text](./imgae/投影.png)
+![alt text](./image/投影.png)
 
 调高柔和度形成泛光效果
 
-![alt text](./imgae/投影泛光效果.png)
+![alt text](./image/投影泛光效果.png)
 
 ## 通道
 
@@ -138,13 +138,13 @@ start offset 等参数可以用作制作变化动画。
 
 用于去除一些多余的线？
 
-![alt text](./imgae/通道最小值.png)
+![alt text](./image/通道最小值.png)
 
 ### 设置通道
 
 把RGB提取出来，形成常用的RGB效果。
 
-![alt text](./imgae/设置通道.png)
+![alt text](./image/设置通道.png)
 
 ## 风格化 stylize
 
@@ -152,13 +152,13 @@ start offset 等参数可以用作制作变化动画。
 
 ### CC glass
 
-![alt text](./imgae/ccglass.png)
+![alt text](./image/ccglass.png)
 
 ### 动态拼贴
 
 可以快速得到如下效果：
 
-![alt text](./imgae/动态拼贴.png)
+![alt text](./image/动态拼贴.png)
 
 也可以用于修复一些特效边缘的问题。也可以只修改中心位置控制整体位置。（好处就是不会有黑边）
 
@@ -172,11 +172,11 @@ posterizeTime 帧数，noise类似random。
 
 ### 发光 glow
 
-![alt text](./imgae/发光1.png)
+![alt text](./image/发光1.png)
 
 结合投影效果不错。
 
-![alt text](./imgae/发光投影.png)
+![alt text](./image/发光投影.png)
 
 ## 扭曲
 
@@ -186,9 +186,9 @@ posterizeTime 帧数，noise类似random。
 
 用于位移像素，和分形的源配合使用可以实现填充。其中水平置换和垂直置换是填入像素内容的相对位移。出现空缺用动态粘贴来修复。
 
-![alt text](./imgae/置换图2.png)
+![alt text](./image/置换图2.png)
 
-![alt text](./imgae/置换图.png)
+![alt text](./image/置换图.png)
 
 ## 颜色矫正
 
@@ -198,7 +198,7 @@ posterizeTime 帧数，noise类似random。
 
 ### 色光 colorama
 
-![alt text](./imgae/色光.png)
+![alt text](./image/色光.png)
 
 
 ## 模糊和锐化
@@ -215,9 +215,9 @@ posterizeTime 帧数，noise类似random。
 
 #### 显像管扫描感
 
-![alt text](./imgae/显像管扫描感.png)
+![alt text](./image/显像管扫描感.png)
 
-![alt text](./imgae/显像管扫描感透明度.png)
+![alt text](./image/显像管扫描感透明度.png)
 
 透明度，创建3个帧分别为30%，15%，30%，运用循环脚本。
 
@@ -233,9 +233,9 @@ y = effect("分形杂色")("偏移（湍流）")[1];
 
 两个纯色图层：
 - 梯度渐变：混合模式选择纯色混合。渐变方向会控制分形的变化方向。
-  ![alt text](./imgae/分形.png)
+  ![alt text](./image/分形.png)
 - 分形杂色：用亮度控制分形的变化。
-  ![alt text](./imgae/分形2.png)
+  ![alt text](./image/分形2.png)
 
 为解决如何使得黑色背景改为透明，来作为更好的过渡使用。目前退而求其次的解决方案是选择其他叠加模式。
 
@@ -256,15 +256,15 @@ time*300
 
 调整图层使用：极坐标（矩形到极线），光学补偿（FOV 115，反转镜头扭曲）
 
-![alt text](./imgae/放射状方块.png)
+![alt text](./image/放射状方块.png)
 
 为了使得极坐标中间衔接处自然，用一下这种方法修复。
 
-![alt text](./imgae/放射方块修正.png)
+![alt text](./image/放射方块修正.png)
 
 修复后：
 
-![alt text](./imgae/放射方块修复后.png)
+![alt text](./image/放射方块修复后.png)
 
 ## 模糊
 

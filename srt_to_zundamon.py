@@ -12,8 +12,8 @@ VOICEVOX_URL = "http://localhost:50021"
 # Common IDs: 0 (四国めたん), 1 (ずんだもん) etc. Check VOICEVOX Engine /speakers or /docs for all IDs.
 DEFAULT_SPEAKER_ID = 1 
 # Output directory for generated audio files.
-OUTPUT_DIR = "E:\\抽吧唧\\1\\voice"
-srt_file_path = "E:\\抽吧唧\\1\\jp.srt" # Make sure your SRT file is here or specify the correct path
+OUTPUT_DIR = "E:\\抽吧唧\\2\\voice_jp"
+srt_file_path = "E:\\抽吧唧\\2\\original - jp.srt" # Make sure your SRT file is here or specify the correct path
 
 # --- Core VOICEVOX Interaction Functions ---
 
@@ -37,7 +37,7 @@ def generate_audio(text, output_path, speaker_id=DEFAULT_SPEAKER_ID):
         # Modify audio parameters for fine-tuning
         audio_query["prePhonemeLength"] = 0.0   # Silence before speech
         audio_query["postPhonemeLength"] = 0.0  # Silence after speech
-        audio_query["speedScale"] = 1.5        # Speech speed (default 1.0)
+        audio_query["speedScale"] = 1.1        # Speech speed (default 1.0)
         audio_query["pitchScale"] = 0.0         # Pitch (default 0.0)
         audio_query["intonationScale"] = 1.1    # Intonation strength (default 1.0)
         audio_query["volumeScale"] = 1.2        # Volume (default 1.0)

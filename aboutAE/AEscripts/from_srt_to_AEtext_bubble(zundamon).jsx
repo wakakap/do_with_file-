@@ -7,7 +7,7 @@
     var FONT_NAME = 'LXGWWenKai-Light'; 
     var ANIMATION_DURATION = 0.12; 
     var APPEAR_OVERDRIVE_SCALE = 110; 
-    var TEXT_FONT_SIZE = 60;
+    var TEXT_FONT_SIZE = 70;
     var MIN_HOLD_DURATION = 0.01; // 字幕内容以100%大小稳定显示的最短时间 (针对SRT中时长极短或无效的情况)
 
     // --- Helper Function: Convert SRT time (HH:MM:SS,mmm) to seconds ---

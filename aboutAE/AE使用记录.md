@@ -34,8 +34,8 @@
 - `ctrl + shift +  '`：grid 吸附
 - `ctrl + alt + f` fit the composition
 - `ctrl + alt + c` 带属性链接复制。这样只能修改原本，连带副本一起修改。
-  - ![alt text](./imgae/带属性链接复制.png)
-  - 对于特效来说，先复制一个副本，选择原本你特效属性，带属性链接复制，再选中副本特效，再粘贴，再复制副本特效到多个。![alt text](./imgae/连带属性链接复制特效.png)
+  - ![alt text](./image/带属性链接复制.png)
+  - 对于特效来说，先复制一个副本，选择原本你特效属性，带属性链接复制，再选中副本特效，再粘贴，再复制副本特效到多个。![alt text](./image/连带属性链接复制特效.png)
 
 ## PX file プロキシ
 
@@ -55,7 +55,7 @@
   - [x] 关于pen tool：view-snap to grid 可以吸附在格子点上。时刻注意锚点是否在中间，用y选择锚点。这影响整体变化时的情况。练习trim path的start和end的动画和repeater的复制方法。
   - [x] 添加动画merge path，mode里有几种：merge add subtract intersect
 
-    <img src="media/mergepathmode.png" alt="mergepathmode" width="50%">
+    <img src="./image/mergepathmode.png" alt="mergepathmode" width="50%">
   - [x] morphing 主要原理是改变一个shape后，可以右键elipse选择convert to bezier path，然后把不同的形状的东西复制到另一个形状的时间轴上不同点，完成变化。
   - [x] 线的offset里有很多功能，这次试了下copy的功能，做出了涟漪的效果。
 - [ ] #04
@@ -229,3 +229,179 @@ value;
 
 笔画为单位分解脚本：https://aescripts.com/cuttananir/?aff=102
 
+### 关于 ずんだもんゆっくり系 动画
+
+#### 动态变化
+
+日本人在其他软件做了很完善的维基，并且软件体量很小，似乎很好用。但我用AE习惯了，想继续用脚本解决。
+
+**整体思路**： base图层用闭眼闭嘴的整体画像，上面紧跟睁眼眼部图层，大嘴中嘴只有嘴部，其他表情如果相同时说话则放在两者之间，想完全覆盖则放在最上面。同时让这些出现的特殊表情的时间里，base图层斩断。用代码控制的有base，眼部，大嘴。中嘴。
+
+<img src="image/zundamon_structure.png" alt="zundamon_structure" width="100%">
+
+大嘴图层的代码：
+
+\
+```
+var threshold = 2.0; // 阈值
+var onDuration = 0.1; // 大嘴时长
+var halfDuration = 0.06; // 中嘴时长
+var offDuration = 0.18; // 闭嘴时长
+var cutDuration = onDuration; // 收尾动画的截止时长参数1
+var cutDuration2 = halfDuration // 收尾动画的截止时长参数1
+
+var frame = thisComp.frameDuration;
+var amplitude = thisComp.layer("Audio Amplitude").effect("两个通道")("滑块");
+var loopDuration = onDuration + halfDuration + offDuration + halfDuration; // 大->小->闭->小
+
+var eventStartTime = -1;
+var eventEndTime = -1;
+var inEvent = (amplitude.valueAtTime(time) > threshold);
+
+if (inEvent) {
+    var t = time;
+    while (t >= 0) { if (amplitude.valueAtTime(t) > threshold) { t -= frame; } else { break; } }
+    eventStartTime = t + frame;
+} else {
+    var t = time - frame;
+    var foundEvent = false;
+    while (t >= 0) { if (amplitude.valueAtTime(t) > threshold) { eventEndTime = t; foundEvent = true; break; } t -= frame; }
+    if (foundEvent) {
+        var t2 = eventEndTime;
+        while (t2 >= 0) { if (amplitude.valueAtTime(t2) > threshold) { t2 -= frame; } else { break; } }
+        eventStartTime = t2 + frame;
+    }
+}
+
+var finalOpacity = 0;
+if (eventStartTime !== -1) {
+    var blinkingClock = time - eventStartTime;
+    var idealOpacity = (blinkingClock % loopDuration < onDuration) ? 100 : 0;
+
+    if (inEvent) {
+        finalOpacity = idealOpacity;
+    } else { // 声音停止，进入收尾判断逻辑
+        var totalEventDuration = eventEndTime - eventStartTime;
+        var timeIntoFinalLoop = totalEventDuration % loopDuration;
+        var timeRemainingInLoop = loopDuration - timeIntoFinalLoop;
+
+        if (timeRemainingInLoop < cutDuration || timeRemainingInLoop > cutDuration2) {
+            finalOpacity = 0; // 最后一个循环距离结尾过短或过长直接放弃
+        } else {
+            if (time < eventEndTime + timeRemainingInLoop) {
+                finalOpacity = idealOpacity; // 剩余时间足够，继续播放完这一段
+            } else {
+                finalOpacity = 0; // 播放完毕，关闭
+            }
+        }
+    }
+}
+finalOpacity;
+```
+
+中嘴图层代码：
+
+```
+var threshold = 2.0; // 阈值
+var onDuration = 0.1; // 大嘴时长
+var halfDuration = 0.06; // 中嘴时长
+var offDuration = 0.18; // 闭嘴时长
+var cutDuration = onDuration; // 收尾动画的截止时长参数1
+var cutDuration2 = halfDuration // 收尾动画的截止时长参数1
+
+var frame = thisComp.frameDuration;
+var amplitude = thisComp.layer("Audio Amplitude").effect("两个通道")("滑块");
+var loopDuration = onDuration + halfDuration + offDuration + halfDuration;
+
+var eventStartTime = -1;
+var eventEndTime = -1;
+var inEvent = (amplitude.valueAtTime(time) > threshold);
+
+if (inEvent) {
+    var t = time;
+    while (t >= 0) { if (amplitude.valueAtTime(t) > threshold) { t -= frame; } else { break; } }
+    eventStartTime = t + frame;
+} else {
+    var t = time - frame;
+    var foundEvent = false;
+    while (t >= 0) { if (amplitude.valueAtTime(t) > threshold) { eventEndTime = t; foundEvent = true; break; } t -= frame; }
+    if (foundEvent) {
+        var t2 = eventEndTime;
+        while (t2 >= 0) { if (amplitude.valueAtTime(t2) > threshold) { t2 -= frame; } else { break; } }
+        eventStartTime = t2 + frame;
+    }
+}
+
+var finalOpacity = 0;
+if (eventStartTime !== -1) {
+    var blinkingClock = time - eventStartTime;
+    var cycle = blinkingClock % loopDuration;
+    
+    var isHalfMouthTime = (cycle >= onDuration && cycle < onDuration + halfDuration) || (cycle >= onDuration + halfDuration + offDuration && cycle < loopDuration);
+    var idealOpacity = isHalfMouthTime ? 100 : 0;
+
+    if (inEvent) {
+        finalOpacity = idealOpacity;
+    } else { // 声音停止，进入收尾判断逻辑
+        var totalEventDuration = eventEndTime - eventStartTime;
+        var timeIntoFinalLoop = totalEventDuration % loopDuration;
+        var timeRemainingInLoop = loopDuration - timeIntoFinalLoop;
+
+        if (timeRemainingInLoop < cutDuration || timeRemainingInLoop > cutDuration2) {
+            finalOpacity = 0;
+        } else {
+            if (time < eventEndTime + timeRemainingInLoop) {
+                finalOpacity = idealOpacity;
+            } else {
+                finalOpacity = 0;
+            }
+        }
+    }
+}
+finalOpacity;
+```
+
+睁眼的眼睛图层，控制眨眼。
+
+```
+// --- 可调参数 ---
+var flickerDuration = 0.2; // 不透明度为0（闪烁）的持续时间（秒）
+var minInterval = 6.0;     // 两次闪烁之间的最小间隔时间（秒）
+var maxInterval = 10.0;    // 两次闪烁之间的最大间隔时间（秒）
+// -----------------
+
+
+var t = 0; // 这是一个时间指针，从0秒开始计算
+var opacityValue = 100; // 默认不透明度为100
+
+// 启动一个循环，从时间线开头开始，一步步地计算出所有闪烁事件的发生时间点
+// 直到计算的时间点超过了当前播放头的时间
+while (t <= time) {
+
+  // 这是最关键的一步：
+  // 我们使用上一个事件的结束时间点(t)作为“随机种子”。
+  // 只要种子不变，生成的随机数就永远是同一个值。
+  // 这保证了两次闪烁之间的间隔时间是固定的，不会在播放时变来变去。
+  seedRandom(t, true);
+  
+  // 根据设定的范围，生成一个随机的间隔时间
+  var randomInterval = random(minInterval, maxInterval);
+  
+  // 计算出下一次闪烁的“开始时间”和“结束时间”
+  var flickerStartTime = t + randomInterval;
+  var flickerEndTime = flickerStartTime + flickerDuration;
+  
+  // 判断一下，当前播放头的时间（time）是否正好落在了我们算出的这个闪烁区间内
+  if (time >= flickerStartTime && time < flickerEndTime) {
+    opacityValue = 0; // 如果是，那么这一帧的不透明度就应该是0
+    break; // 既然已经找到了，就没必要再继续往后计算了，跳出循环
+  }
+  
+  // 如果当前时间不在这次闪烁的区间内，
+  // 我们就把时间指针t“跳”到这次闪烁结束的时刻，准备计算下下一次闪烁
+  t = flickerEndTime;
+}
+
+// 将最终计算出的不透明度值输出
+opacityValue;
+```
