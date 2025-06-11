@@ -153,6 +153,7 @@ def generate_audio_for_text(text, output_path):
         return False
 
 
+
 def main():
     srt_file_path = "E:\\抽吧唧\\2\\original_zh.srt" #sys.argv[1]
     output_dir = "E:\\抽吧唧\\2\\sub"
@@ -199,8 +200,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
     ####### 临时用
-    # text = "今天是个好日子"
-    # output_filepath = os.path.join("", f"{text}.wav")
-    # generate_audio_for_text(text, output_filepath)
+    if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH):
+        print("\nAborting due to model switching failure. Please check the API server and model paths.")
+        sys.exit(1)
+    srt_file_path = "E:\\抽吧唧\\2\\original_zh.srt" #sys.argv[1]
+    output_dir = "E:\\抽吧唧\\2"
+    text = "我喜欢漫画家琴山的人设"
+    output_filepath = os.path.join(output_dir, "0052.wav")
+    generate_audio_for_text(text, output_filepath)

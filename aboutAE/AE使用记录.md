@@ -231,17 +231,31 @@ value;
 
 ### 关于 ずんだもんゆっくり系 动画
 
-#### 动态变化
+前言：日本人在其他软件做了很完善的维基，并且软件体量很小，似乎很好用。但我用AE习惯了，想继续用脚本解决。
 
-日本人在其他软件做了很完善的维基，并且软件体量很小，似乎很好用。但我用AE习惯了，想继续用脚本解决。
+**流程化**：
+- 写视频脚本，每行为一句，特殊标记：
+  - r:开头表示是日文，在生产中文音声时跳过，在生产日文音声时识别。
+  - |:结尾表示展示特殊zundamon表情，AE导入时自动导入图片，并吧base表情在这里截断。（设置透明度）
+  - 展示图片的自动导入？待施工
+- 借助AI把脚本时间戳自动生成大致的srt文件。多复制一行，识别问题。
+  - `这是一个视频脚本，每行是一句，r:和|:以后的内容为特殊标记，不占内容。请根据文本长短估计语音时长为被一句赋合适的时间戳，给我一个srt文件代码，不要改变我的文本内容。`（其实这里不需要，因为是根据wav语音长度导入AE中的）
+- 用`GPT-SoVITS_srt_to_wav.py`生产中文wav文件，用`srt_to_zundamon.py`生产日文wav文件
+  - [ ] 修改代码，文件名统一为`0011_zh_text.wav`和`0012_jp_text.wav`的形式，以srt中的序号为准
+- 把两个音声放到同个文件夹
+- `from_srt_and_wavfile_to_AEtextt_bubble(zudamon).jsx` 导入AE，删除所有wav，把文本图层用`from_aetext_to_srt.jsx`导出srt文件，得到正确时间戳的srt，之后文本修改在这个srt上进行。每次修改后，重新用`from_srt_to_AEtext_bubble(zundamon).jsx`导入AE。
+  - [ ] 修改代码，r: |:等特殊字符的忽略。
+- 导出srt文件后，回退保留wav，用`delete_all_text.jsx`删除所有文本，把音频单独合成。
+- [ ] 用脚本识别|:做处理。
+- 选中音频合成，选择动画，关键帧辅助，音频转关键帧。完成zundamon部分
 
-**整体思路**： base图层用闭眼闭嘴的整体画像，上面紧跟睁眼眼部图层，大嘴中嘴只有嘴部，其他表情如果相同时说话则放在两者之间，想完全覆盖则放在最上面。同时让这些出现的特殊表情的时间里，base图层斩断。用代码控制的有base，眼部，大嘴。中嘴。
+**zundamon结构**：base图层用闭眼闭嘴的整体画像，上面紧跟睁眼眼部图层，大嘴中嘴只有嘴部，其他表情如果相同时说话则放在两者之间，想完全覆盖则放在最上面。同时让这些出现的特殊表情的时间里，base图层斩断。用代码控制的有base，眼部，大嘴。中嘴。
 
 <img src="image/zundamon_structure.png" alt="zundamon_structure" width="100%">
 
 大嘴图层的代码：
+<details>
 
-\
 ```
 var threshold = 2.0; // 阈值
 var onDuration = 0.1; // 大嘴时长
@@ -299,7 +313,11 @@ if (eventStartTime !== -1) {
 finalOpacity;
 ```
 
+</details>
+
 中嘴图层代码：
+
+<details>
 
 ```
 var threshold = 2.0; // 阈值
@@ -361,7 +379,11 @@ if (eventStartTime !== -1) {
 finalOpacity;
 ```
 
+</details>
+
 睁眼的眼睛图层，控制眨眼。
+
+<details>
 
 ```
 // --- 可调参数 ---
@@ -405,3 +427,9 @@ while (t <= time) {
 // 将最终计算出的不透明度值输出
 opacityValue;
 ```
+
+</details>
+
+动画背景做一个循环动画，然后用AE的循环指令。
+
+<img src="image/looprunout.png" alt="looprunout" width="90%">
