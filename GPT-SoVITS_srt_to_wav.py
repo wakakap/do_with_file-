@@ -4,209 +4,210 @@ import requests
 import sys
 import time
 
-# --- Configuration ---
-# All parameters are set based on your provided 'main.py' file.
+# --- 配置区 ---
 
-# GPT-SoVITS API endpoint
+# GPT-SoVITS API接口地址
 API_URL = "http://localhost:9880/tts"
-GPT_WEIGHTS_PATH = "D:\GPT-SoVITS_\GPT-SoVITS-v4-20250422fix\GPT_weights_v4\\zundamon-e10.ckpt"
+# 模型路径 (请确保路径正确)
+GPT_WEIGHTS_PATH = "D:\\GPT-SoVITS_\\GPT-SoVITS-v4-20250422fix\\GPT_weights_v4\\zundamon-e10.ckpt"
 SOVITS_WEIGHTS_PATH = "D:\\GPT-SoVITS_\\GPT-SoVITS-v4-20250422fix\\SoVITS_weights_v4\\zundamon_e1_s99_l32.pth"
-# Parameters for the API request
-# Using reference audio is enabled by default as requested.
-# Please ensure these paths are correct for your system.
+
+# 英文替换为中文的对应表 (不区分大小写)
+EN_TO_ZH_MAP = {
+    'amazon': '亚马逊',
+    'abema': '啊百马',
+    # 在这里添加更多对应关系，例如:
+    'google': '谷歌',
+    'youtube': '油管',
+    'twitter': '推特',
+    'facebook': '脸书',
+    'instagram': '因斯特古拉姆',
+    'tver': '梯瓦儿',
+    'netflix': '网飞',
+    'disney': '迪士尼',
+    'hulu': '呼噜',
+    'line': '烂',
+    'mono': '莫诺',
+    'u-next': '优奈克斯特',
+    'niconico': '妮口妮口',
+    'at-x': '艾踢艾克斯',
+    'ani-one': '阿尼碗',
+    'bilibili': '哔哩哔哩',
+    'ip': '哀劈',
+}
+
+# API请求参数
 GPT_SOVITS_PARAMS = {
-    # Reference Audio Settings
+    # 参考音频设置
     "ref_audio_path": "D:\\GPT-SoVITS_\\zundamon\\今日は最高の一日だった！課題とか全然やってないけど、まぁ、明日頑張ればいいよね.wav",
     "prompt_text": "今日は最高の一日だった！課題とか全然やってないけど、まぁ、明日頑張ればいいよね",
     "prompt_lang": "ja",
-
-    # Text and Language Settings
-    "text_lang": "zh", # ja, zh, en
-    
-    # Synthesis Parameters
-    "top_k": 5,
-    "top_p": 1,
-    "temperature": 1,
-    "text_split_method": "cut5",
-    "batch_size": 1,
-    "batch_threshold": 0.75,
+    # 默认的文本和语言设置
+    "text_lang": "zh",  # 可选: ja, zh, en
+    # 合成参数
+    "top_k": 5, 
+    "top_p": 1, 
+    "temperature": 1, 
+    "text_split_method": 
+    "cut5",
+    "batch_size": 1, 
+    "batch_threshold": 0.75, 
     "split_bucket": True,
-    "speed_factor": 1.15,
-    "fragment_interval": 0.3,
+    "speed_factor": 1.15, 
+    "fragment_interval": 0.3, 
     "seed": -1,
-    "parallel_infer": True,
-    "media_type": "wav",
+    "parallel_infer": True, 
+    "media_type": "wav", 
     "streaming_mode": False,
-    "parallel_infer": True,
-    "repetition_penalty": 1.35,
-    "sample_steps": 16, #32
+    "repetition_penalty": 1.35, 
+    "sample_steps": 24, 
     "super_sampling": False,
 }
 
 def switch_models(gpt_path, sovits_path):
-    print("\n--- 🔄 Attempting to switch models ---")
-    
-    # Switch GPT Model
+    """切换GPT和SoVITS模型"""
+    print("\n--- 🔄 正在切换模型 ---")
+    # 切换GPT模型
     if gpt_path:
-        print(f"  Switching GPT model to: {gpt_path}")
+        print(f"  切换GPT模型: {os.path.basename(gpt_path)}")
         try:
-            # This logic is based on the /set_gpt_weights endpoint in api_v2.py
-            response_gpt = requests.get(f"http://127.0.0.1:9880//set_gpt_weights", params={"weights_path": gpt_path}, timeout=20)
-            if response_gpt.status_code == 200 and response_gpt.json().get("message") == "success":
-                print("  ✔️ GPT model switched successfully.")
-            else:
-                print(f"  ❌ Failed to switch GPT model. Status: {response_gpt.status_code}, Response: {response_gpt.text}")
-                return False
-        except requests.exceptions.RequestException as e:
-            print(f"  ❌ Network error while switching GPT model: {e}")
-            return False
-    else:
-        print("  - Skipping GPT model switch (no path provided).")
-
-    # Switch SoVITS Model
+            r = requests.get(f"http://127.0.0.1:9880/set_gpt_weights", params={"weights_path": gpt_path}, timeout=20)
+            if r.ok and r.json().get("message") == "success": print("  ✔️ GPT模型切换成功。")
+            else: print(f"  ❌ GPT模型切换失败。状态码: {r.status_code}"); return False
+        except requests.exceptions.RequestException as e: print(f"  ❌ 切换GPT模型时网络错误: {e}"); return False
+    # 切换SoVITS模型
     if sovits_path:
-        print(f"  Switching SoVITS model to: {sovits_path}")
+        print(f"  切换SoVITS模型: {os.path.basename(sovits_path)}")
         try:
-            # This logic is based on the /set_sovits_weights endpoint in api_v2.py
-            response_sovits = requests.get(f"http://127.0.0.1:9880//set_sovits_weights", params={"weights_path": sovits_path}, timeout=20)
-            if response_sovits.status_code == 200 and response_sovits.json().get("message") == "success":
-                print("  ✔️ SoVITS model switched successfully.")
-            else:
-                print(f"  ❌ Failed to switch SoVITS model. Status: {response_sovits.status_code}, Response: {response_sovits.text}")
-                return False
-        except requests.exceptions.RequestException as e:
-            print(f"  ❌ Network error while switching SoVITS model: {e}")
-            return False
-    else:
-        print("  - Skipping SoVITS model switch (no path provided).")
-
-    print("--- ✅ Model switching complete ---\n")
+            r = requests.get(f"http://127.0.0.1:9880/set_sovits_weights", params={"weights_path": sovits_path}, timeout=20)
+            if r.ok and r.json().get("message") == "success": print("  ✔️ SoVITS模型切换成功。")
+            else: print(f"  ❌ SoVITS模型切换失败。状态码: {r.status_code}"); return False
+        except requests.exceptions.RequestException as e: print(f"  ❌ 切换SoVITS模型时网络错误: {e}"); return False
+    print("--- ✅ 模型切换完成 ---\n")
     return True
 
-
 def parse_srt_file(file_path):
-    print(f"🔍 Parsing SRT file: {file_path}")
+    """解析SRT文件，提取字幕序号和文本"""
+    print(f"🔍 正在解析SRT文件: {file_path}")
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-    except FileNotFoundError:
-        print(f"❌ ERROR: SRT file not found at {file_path}")
-        return None
-    except Exception as e:
-        print(f"❌ ERROR: Could not read SRT file. Reason: {e}")
-        return None
-
-    # Regex to capture index, timestamp, and text.
-    # It handles multiline text within a subtitle block.
-    pattern = re.compile(r'(\d+)\s*\n(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})\s*\n([\s\S]*?)(?=\n\n|\Z)', re.MULTILINE)
-    
-    subtitles = []
-    for match in pattern.finditer(content):
-        index = match.group(1)
-        # Clean up text: remove leading/trailing whitespace and replace newlines with a space.
-        text = ' '.join(match.group(4).strip().splitlines())
-        if text: # Only add subtitles that have text
-            subtitles.append({'index': index, 'text': text})
-            
-    if not subtitles:
-        print("⚠️ Warning: No valid subtitle entries found in the file.")
-    else:
-        print(f"✅ Found {len(subtitles)} subtitle entries.")
-        
+        with open(file_path, 'r', encoding='utf-8') as f: content = f.read()
+    except Exception as e: print(f"❌ 错误: 无法读取SRT文件，原因: {e}"); return None
+    pattern = re.compile(r'(\d+)\s*\n(?:\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3})\s*\n([\s\S]*?)(?=\n\n|\Z)', re.MULTILINE)
+    subtitles = [{'index': m.group(1), 'text': ' '.join(m.group(2).strip().splitlines())} for m in pattern.finditer(content)]
+    if subtitles: print(f"✅ 找到 {len(subtitles)} 条字幕。")
+    else: print("⚠️ 警告: 文件中未找到有效的字幕条目。")
     return subtitles
 
+def sanitize_filename(text, max_length=50):
+    """清理文本，使其可以安全地用作文件名的一部分。"""
+    sanitized = re.sub(r'[\\/*?:"<>|]', '', text)
+    sanitized = sanitized.replace(' ', '_')
+    return sanitized[:max_length]
 
-def generate_audio_for_text(text, output_path):
-    """
-    Sends a request to the GPT-SoVITS API to generate audio for the given text.
+def replace_english_words(text):
+    """根据 EN_TO_ZH_MAP 表，将文本中的英文单词替换为对应的中文。"""
+    if not any(c.isalpha() for c in text): return text # 如果没有字母，直接返回
+    def get_replacement(match):
+        word = match.group(0)
+        return EN_TO_ZH_MAP.get(word.lower(), word) # 查找小写版本，找不到则返回原词
+    return re.sub(r'[a-zA-Z]+(?:-[a-zA-Z]+)*', get_replacement, text, flags=re.IGNORECASE)
 
-    Args:
-        text (str): The text to synthesize.
-        output_path (str): The path to save the generated WAV file.
-        
-    Returns:
-        bool: True if successful, False otherwise.
-    """
+def generate_audio_for_text(text, text_lang, output_path):
+    if os.path.exists(output_path):
+        print(f"   ⚠️ 文件已存在，跳过合成: {os.path.basename(output_path)}")
+        return True # 无需执行
     payload = GPT_SOVITS_PARAMS.copy()
-    payload['text'] = text
-    
-    print(f"   Synthesizing: \"{text[:50]}...\"")
-    
+    payload['text'], payload['text_lang'] = text, text_lang
+    print(f"   合成中 (语言: {text_lang}): \"{text[:50]}...\"")
     try:
-        response = requests.post(API_URL, json=payload, timeout=90)
-        
+        response = requests.post(API_URL, json=payload, timeout=120)
         if response.ok and 'audio/wav' in response.headers.get('Content-Type', ''):
             with open(output_path, "wb") as f:
                 f.write(response.content)
-            print(f"   ✔️ Audio saved to: {os.path.basename(output_path)}")
+            print(f"   ✔️ 音频已保存: {os.path.basename(output_path)}")
             return True
         else:
-            print(f"   ❌ API Error (Status: {response.status_code}): {response.text[:250]}")
+            print(f"   ❌ API错误 (状态码: {response.status_code}): {response.text[:250]}")
             return False
-            
     except requests.exceptions.RequestException as e:
-        print(f"   ❌ Network Error: Failed to connect to GPT-SoVITS API at {API_URL}.")
-        print(f"      Reason: {e}")
+        print(f"   ❌ 网络错误: 无法连接到API服务器 {API_URL}。原因: {e}")
         return False
-    except Exception as e:
-        print(f"   ❌ An unexpected error occurred during API call: {e}")
-        return False
-
-
 
 def main():
-    srt_file_path = "E:\\抽吧唧\\2\\original_zh.srt" #sys.argv[1]
-    output_dir = "E:\\抽吧唧\\2\\sub"
-    
-    # Create the output directory if it doesn't exist
+    srt_file_path = "E:\\抽吧唧\\在日本怎么看动画\\original.srt"
+    output_dir = "E:\\抽吧唧\\在日本怎么看动画\\sub"
     os.makedirs(output_dir, exist_ok=True)
 
-    # Switch models before starting the main process
-    if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH):
-        print("\nAborting due to model switching failure. Please check the API server and model paths.")
-        sys.exit(1)
-    
-    # Parse the SRT file
+    if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
     subtitles = parse_srt_file(srt_file_path)
-    if subtitles is None:
-        sys.exit(1) # Exit if file parsing failed
-    
-    total_subtitles = len(subtitles)
-    success_count = 0
-    
-    print(f"\n🚀 Starting audio generation for {total_subtitles} subtitles...")
-    
-    # Process each subtitle
+    if not subtitles: sys.exit(1)
+
+    total, success_count = len(subtitles), 0
+    print(f"\n🚀 开始为 {total} 条字幕生成音频...")
+
     for i, sub in enumerate(subtitles):
-        print(f"\n--- Processing subtitle {i+1}/{total_subtitles} (Index: {sub['index']}) ---")
-        
-        # Format the output filename with leading zeros (e.g., 001.wav, 002.wav)
-        output_filename = f"{sub['index'].zfill(4)}.wav"
-        output_filepath = os.path.join(output_dir, output_filename)
-        
-        if generate_audio_for_text(sub['text'], output_filepath):
-            success_count += 1
+        print(f"\n--- 处理字幕 {i+1}/{total} (序号: {sub['index']}) ---")
+
+        # 1. 语言识别和'|'分割
+        raw_text = sub['text']
+        target_lang = GPT_SOVITS_PARAMS['text_lang']
+        if raw_text.strip().startswith('j:'):
+            target_lang = 'ja'
+            text_for_filename = raw_text.strip()[2:].strip()
+            print("   检测到 'j:' 前缀，语言切换为日语。")
         else:
-            print(f"   Skipping to next subtitle due to error.")
-        
-        # Add a small delay to avoid overwhelming the API server
+            text_for_filename = raw_text.strip()
+        text_for_filename = text_for_filename.split('|')[0].strip()
+
+        if not text_for_filename:
+            print("   ⚠️ 文本预处理后为空，跳过此字幕。")
+            continue
+
+        # 2. 生成文件名 (使用替换前的文本)
+        safe_text = sanitize_filename(text_for_filename)
+        output_filename = f"{sub['index'].zfill(4)}_{target_lang}_{safe_text}.wav"
+        output_filepath = os.path.join(output_dir, output_filename)
+
+        # 3. 英文替换 (仅用于语音合成)
+        text_for_synthesis = replace_english_words(text_for_filename)
+        if text_for_synthesis != text_for_filename:
+            print(f"   英文词替换: \"{text_for_filename}\" -> \"{text_for_synthesis}\"")
+
+        # 4. 生成音频
+        if generate_audio_for_text(text_for_synthesis, target_lang, output_filepath):
+            success_count += 1
         time.sleep(0.5)
 
-    print("\n-------------------------------------------")
-    print(f"🎉 Processing complete!")
-    print(f"   Successfully generated: {success_count}/{total_subtitles} audio files.")
-    print(f"   Output directory: {output_dir}")
-    print("-------------------------------------------")
-
+    print(f"\n🎉 处理完成！成功生成 {success_count}/{total} 个文件。输出目录: {output_dir}")
 
 if __name__ == "__main__":
+    # 要运行完整的SRT处理流程，请取消下面一行的注释
     # main()
-    ####### 临时用
-    if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH):
-        print("\nAborting due to model switching failure. Please check the API server and model paths.")
-        sys.exit(1)
-    srt_file_path = "E:\\抽吧唧\\2\\original_zh.srt" #sys.argv[1]
-    output_dir = "E:\\抽吧唧\\2"
-    text = "我喜欢漫画家琴山的人设"
-    output_filepath = os.path.join(output_dir, "0052.wav")
-    generate_audio_for_text(text, output_filepath)
+
+    ####### 临时测试区 #######
+    if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
+    output_dir = "E:\\抽吧唧"
+    os.makedirs(output_dir, exist_ok=True)
+    # 测试文本 (包含j:前缀, |忽略部分, 和需要替换的英文)
+    raw_text_to_test = "改变你的IP地址"
+    print(f"\n--- 运行单条文本测试 ---\n原始文本: \"{raw_text_to_test}\"")
+    # 1. 语言识别和'|'分割
+    target_lang = GPT_SOVITS_PARAMS['text_lang']
+    if raw_text_to_test.strip().startswith('j:'):
+        target_lang = 'ja'
+        text_for_filename = raw_text_to_test.strip()[2:].strip()
+        print("   检测到 'j:' 前缀，语言切换为日语。")
+    else:
+        text_for_filename = raw_text_to_test.strip()
+    text_for_filename = text_for_filename.split('|')[0].strip()
+    # 2. 生成文件名
+    if text_for_filename:
+        safe_text = sanitize_filename(text_for_filename)
+        output_filename = f"0000_{target_lang}_{safe_text}.wav"
+        output_filepath = os.path.join(output_dir, output_filename)
+        # 3. 英文替换
+        text_for_synthesis = replace_english_words(text_for_filename)
+        if text_for_synthesis != text_for_filename:
+            print(f"   英文词替换: \"{text_for_filename}\" -> \"{text_for_synthesis}\"")
+        # 4. 生成音频
+        generate_audio_for_text(text_for_synthesis, target_lang, output_filepath)
