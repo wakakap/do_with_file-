@@ -239,16 +239,17 @@ value;
   - |结尾表示展示特殊zundamon表情，AE导入时自动导入图片，并吧base表情在这里截断。（设置透明度）
   - [ ] 展示图片的自动导入？待施工
 - 借助AI把脚本时间戳自动生成大致的srt文件。多复制一行，识别问题。
-  - `这是一个视频脚本，每行是一句，j:和|以后的内容为特殊标记，不占内容，请保留。请根据文本长短大致估计语音时长为被一句赋合适的时间戳，给我一个srt文件代码，不要改变我的文本内容。`（其实这里不需要精确，因为是根据wav语音长度导入AE中的）
-  - `这是我写的一个视频的语音脚本，不用管时间安排的问题，无视j:和|之后的内容。请帮我分析我的文本内容，有什么逻辑问题或者表达上建议？`
-- 打开`api_v2.bat`，用`GPT-SoVITS_srt_to_wav.py`生产中文+日文的wav文件，~~用`srt_to_zundamon.py`生产日文wav文件~~
-  - [x] 修改代码，文件名统一为`0011_zh_text.wav`和`0012_jp_text.wav`的形式，以srt中的序号为准
-- [x] `from_srt_and_wavfile_setall_AE(zudamon)` 一步到位
-- `from_srt_and_wavfile_to_AEtextt_bubble(zudamon).jsx` 导入AE，删除所有wav，把文本图层用`from_aetext_to_srt.jsx`导出srt文件，得到正确时间戳的srt，之后文本修改在这个srt上进行。每次修改后，重新用`from_srt_to_AEtext_bubble(zundamon).jsx`导入AE。
-  - [x] 修改代码，j:, |等特殊字符的忽略。
-- ~~导出srt文件后，回退保留wav，用`delete_all_text.jsx`删除所有文本，把音频单独合成。~~
-- [x] 用脚本识别|做处理。
-- 选中音频合成，选择动画，关键帧辅助，音频转关键帧。完成zundamon部分
+  - `这是一个视频脚本，每行是一句，j:和|以后的内容为特殊标记，不占内容，请保留。请根据文本长短大致估计语音时长为被一句赋合适的时间戳，给我一个srt文件代码，不要改变我的文本内容。`（其实这里不需要精确，因为之后会算wav语音长度）
+- 打开`api_v2.bat`，用`GPT-SoVITS_srt_to_wav.py`生产中文+日文的wav文件
+  - 修改srt后用`reset_srt_number.py`重置序号
+  - 改变srt顺序后不想重新生成音频则用`change_wavindex_based_srt.py`改写wav文件名序号
+  - 如果修改srt文本内容，则记得删除对应wav，重新运行
+- `calculate_wavtime_adjust_srt.py`得到考虑音频长度后的srt文件
+- 导入pr中编辑视频
+- 导出srt
+- 使用 `from_srt_and_wavfile_setall_AE(zudamon)` 一步到位
+  - 手动把文本和音频创建预合成，选中音频合成，选择动画，关键帧辅助，音频转关键帧。调整文本预合成的位置。
+- 在pr中导入合成和背景合成
 
 **zundamon结构**：base图层用闭眼闭嘴的整体画像，上面紧跟睁眼眼部图层，大嘴中嘴只有嘴部，其他表情如果相同时说话则放在两者之间，想完全覆盖则放在最上面。同时让这些出现的特殊表情的时间里，base图层斩断。用代码控制的有base，眼部，大嘴。中嘴。
 

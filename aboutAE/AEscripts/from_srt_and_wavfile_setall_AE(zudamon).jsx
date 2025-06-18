@@ -4,8 +4,8 @@
     var ANIMATION_DURATION = 0.12;
     var APPEAR_OVERDRIVE_SCALE = 110;
     var TEXT_FONT_SIZE = 70;
-    var MIN_HOLD_DURATION = 0.01;
-    var GAP_BETWEEN_SUBTITLES = 0.2;
+    var MIN_HOLD_DURATION = 0.01; // This might be less relevant now that SRT dictates timing, but kept for text animation calculation.
+    var GAP_BETWEEN_SUBTITLES = 0.2; // This is no longer used for sequential placement but could be for other purposes if needed.
 
     // --- (新) 定义嘴型和眼睛的表达式字符串 ---
     var bigMouthExpression = "var threshold = 2.0; // 阈值\n" +
@@ -161,7 +161,15 @@
         "opacityValue;";
 
     // --- Helper Function: srtTimeToSeconds ---
-    function srtTimeToSeconds(timeString) { /* ... 此函数未改变 ... */ return eval(timeString.replace(/:/g, "*60+").replace(/,/g, "/1000+"))-eval(timeString.split(':')[0])*60; }
+    function srtTimeToSeconds(timeString) {
+        // This function needs to parse the time string correctly, including hours, minutes, seconds, and milliseconds.
+        // The original implementation was a bit hacky. Let's make it robust.
+        var parts = timeString.replace(',', '.').split(':');
+        var hours = parseFloat(parts[0]);
+        var minutes = parseFloat(parts[1]);
+        var seconds = parseFloat(parts[2]);
+        return hours * 3600 + minutes * 60 + seconds;
+    }
 
     // --- Main Logic ---
     var comp = app.project.activeItem;
@@ -183,6 +191,7 @@
     var srtContent = srtFile.read();
     srtFile.close();
 
+    // Regex to capture ID, Start Time, End Time, and Text Content
     var srtRegex = /(\d+)\s*(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})\s*([\s\S]*?)(?=\n\n|\n\d+\n|$)/g;
     var match;
     var subtitles = [];
@@ -198,10 +207,9 @@
 
     if (subtitles.length === 0) { alert("未能从文件中解析出任何字幕条目。"); return; }
 
-    app.beginUndoGroup("导入SRT、WAV和PNG并自动排序+表达式 (V4.1 robust naming)");
-    
+    app.beginUndoGroup("导入SRT、WAV和PNG并自动排序+表达式 (V4.2 SRT Time-based)");
+
     var compCenter = [comp.width / 2, comp.height / 2];
-    var currentTime = 0;
     var audioLayers = [], textLayers = [], imageLayers = [];
 
     for (var i = 0; i < subtitles.length; i++) {
@@ -210,6 +218,7 @@
         var pngNameToImport = null;
         var textColor = [0, 0, 0];
 
+        // Parse custom commands from text content
         if (textContent.indexOf('|') > -1) {
             var parts = textContent.split('|');
             textContent = parts[0].replace(/^\s+|\s+$/g, '');
@@ -217,40 +226,44 @@
         }
 
         if (textContent.toLowerCase().indexOf("r:") === 0) {
-            textColor = [1, 0, 0];
+            textColor = [1, 0, 0]; // Red color
             textContent = textContent.substring(2);
         }
         if (textContent.toLowerCase().indexOf("j:") === 0) {
+            // "j:" implies standard processing, just remove the prefix
             textContent = textContent.substring(2);
         }
-        textContent = textContent.replace(/^\s+|\s+$/g, '');
+        textContent = textContent.replace(/^\s+|\s+$/g, ''); // Trim whitespace after parsing commands
 
         var formattedId = ("0000" + sub.id).slice(-4);
         var foundWavFiles = wavFolder.getFiles(formattedId + "*.wav");
         var audioLayer = null;
-        var wavDuration = 0;
 
-        if (i > 0) { currentTime += GAP_BETWEEN_SUBTITLES; }
+        // Determine layer in and out points directly from SRT
+        var layerInPoint = sub.startTime;
+        var layerOutPoint = sub.endTime;
 
         if (foundWavFiles.length > 0) {
             try {
                 var importedFootage = app.project.importFile(new ImportOptions(foundWavFiles[0]));
                 audioLayer = comp.layers.add(importedFootage);
                 audioLayer.name = "Audio " + sub.id;
-                audioLayer.startTime = currentTime;
-                wavDuration = importedFootage.duration;
-                if (wavDuration < (2 * ANIMATION_DURATION + MIN_HOLD_DURATION)) { wavDuration = (2 * ANIMATION_DURATION + MIN_HOLD_DURATION); }
+                audioLayer.startTime = layerInPoint; // WAV starts at SRT start time
+                // WAV's outPoint is its natural duration after its start time.
+                // It's not forced to end at layerOutPoint.
                 audioLayers.push(audioLayer);
-            } catch (e) { wavDuration = (2 * ANIMATION_DURATION + MIN_HOLD_DURATION); }
-        } else { wavDuration = (2 * ANIMATION_DURATION + MIN_HOLD_DURATION); }
+            } catch (e) {
+                alert("导入 WAV '" + foundWavFiles[0].name + "' 时出错: " + e.toString());
+            }
+        } else {
+            alert("警告: 未找到与字幕 ID " + sub.id + " 对应的 WAV 文件。文本和图片仍将创建。");
+        }
 
-        var layerInPoint = currentTime;
-        var layerOutPoint = currentTime + wavDuration;
-
+        // Create Text Layer
         var textLayer = comp.layers.addText(textContent);
         textLayer.name = "Subtitle " + sub.id;
         textLayer.inPoint = layerInPoint;
-        textLayer.outPoint = layerOutPoint;
+        textLayer.outPoint = layerOutPoint; // Text ends at SRT end time
         textLayers.push(textLayer);
 
         var textProp = textLayer.property("Source Text");
@@ -260,7 +273,7 @@
         textDocument.justification = ParagraphJustification.CENTER_JUSTIFY;
         textDocument.fillColor = textColor;
         textDocument.leading = 80;
-        textDocument.tracking = -100;
+        textDocument.tracking = -50;
         textDocument.applyStroke = true;
         textDocument.strokeWidth = 2;
         textDocument.strokeOverFill = true;
@@ -270,30 +283,30 @@
         textLayer.property("Transform").property("Anchor Point").setValue([sourceRect.left + sourceRect.width / 2, sourceRect.top + sourceRect.height / 2]);
         textLayer.property("Transform").property("Position").setValue(compCenter);
 
-        textLayer.property("Transform").property("Scale").expression = "/*... 文本缩放表达式未改变 ...*/ var animDuration = " + ANIMATION_DURATION.toFixed(3) + "; var overdriveScale = " + APPEAR_OVERDRIVE_SCALE.toFixed(3) + "; var fullScale = [100, 100]; var noScale = [0, 0]; var t = time - thisLayer.inPoint; var layerDuration = thisLayer.outPoint - thisLayer.inPoint; if (t >= 0 && t < animDuration) { var appearMidTime = animDuration * 0.7; if (t < appearMidTime) { ease(t, 0, appearMidTime, noScale, [overdriveScale, overdriveScale]); } else { ease(t, appearMidTime, animDuration, [overdriveScale, overdriveScale], fullScale); } } else if (t > layerDuration - animDuration && t <= layerDuration + 0.0001) { var timeIntoDisappear = t - (layerDuration - animDuration); ease(timeIntoDisappear, 0, animDuration, fullScale, noScale); } else if (t >= animDuration && t <= layerDuration - animDuration) { fullScale; } else { if (layerDuration < animDuration) noScale; else if (t > animDuration && layerDuration < 2 * animDuration) fullScale; else noScale; }";
+        textLayer.property("Transform").property("Scale").expression = "var animDuration = " + ANIMATION_DURATION.toFixed(3) + "; var overdriveScale = " + APPEAR_OVERDRIVE_SCALE.toFixed(3) + "; var fullScale = [100, 100]; var noScale = [0, 0]; var t = time - thisLayer.inPoint; var layerDuration = thisLayer.outPoint - thisLayer.inPoint; if (t >= 0 && t < animDuration) { var appearMidTime = animDuration * 0.7; if (t < appearMidTime) { ease(t, 0, appearMidTime, noScale, [overdriveScale, overdriveScale]); } else { ease(t, appearMidTime, animDuration, [overdriveScale, overdriveScale], fullScale); } } else if (t > layerDuration - animDuration && t <= layerDuration + 0.0001) { var timeIntoDisappear = t - (layerDuration - animDuration); ease(timeIntoDisappear, 0, animDuration, fullScale, noScale); } else if (t >= animDuration && t <= layerDuration - animDuration) { fullScale; } else { if (layerDuration < animDuration) noScale; else if (t > animDuration && layerDuration < 2 * animDuration) fullScale; else noScale; }";
 
+        // Create PNG Image Layer if specified
         if (pngNameToImport) {
             var pngFile = new File(pngFolder.fsName + "/" + pngNameToImport + ".png");
             if (pngFile.exists) {
                 try {
                     var pngLayer = comp.layers.add(app.project.importFile(new ImportOptions(pngFile)));
-                    // --- (修改) 采用 字幕ID 的方式创建唯一图层名，确保稳健性 ---
                     pngLayer.name = pngNameToImport + " - " + sub.id;
                     pngLayer.inPoint = layerInPoint;
-                    pngLayer.outPoint = layerOutPoint;
-                    // --- (新) 应用统一的位置和缩放 ---
+                    pngLayer.outPoint = layerOutPoint; // PNG also ends at SRT end time
                     pngLayer.property("Transform").property("Position").setValue([1654, 1006]);
                     pngLayer.property("Transform").property("Scale").setValue([57.1165, 57.1165]);
                     imageLayers.push(pngLayer);
                 } catch (e) { alert("导入 PNG '" + pngFile.name + "' 时出错: " + e.toString()); }
             } else { alert("警告: 未找到图片 '" + pngNameToImport + ".png'。"); }
         }
-        currentTime = layerOutPoint;
+        // No currentTime update needed as layers are placed based on absolute SRT times
     }
 
     var baseLayer = null, midMouthLayer = null, bigMouthLayer = null, eyeLayer = null;
     var staticImageNames = ["base.png", "眼.png", "中嘴.png", "大嘴.png"];
 
+    // Import and set up static image layers (base, eyes, mouths)
     for (var j = 0; j < staticImageNames.length; j++) {
         var imageName = staticImageNames[j];
         var imageFile = new File(pngFolder.fsName + "/" + imageName);
@@ -301,9 +314,8 @@
             try {
                 var layer = comp.layers.add(app.project.importFile(new ImportOptions(imageFile)));
                 layer.name = imageName.split('.')[0];
-                layer.inPoint = 0;
+                layer.inPoint = 0; // Static layers span the whole composition
                 layer.outPoint = comp.duration;
-                // --- (新) 为所有静态图片应用统一的位置和缩放 ---
                 layer.property("Transform").property("Position").setValue([1654, 1006]);
                 layer.property("Transform").property("Scale").setValue([57.1165, 57.1165]);
 
@@ -319,7 +331,7 @@
     if (baseLayer && imageLayers.length > 0) {
         var expressionConditions = [];
         for (var k = 0; k < imageLayers.length; k++) {
-            var layerName = imageLayers[k].name.replace(/'/g, "\\'");
+            var layerName = imageLayers[k].name.replace(/'/g, "\\'"); // Escape single quotes in layer name
             expressionConditions.push("(time >= thisComp.layer('" + layerName + "').inPoint && time < thisComp.layer('" + layerName + "').outPoint)");
         }
         var baseOpacityExpression = expressionConditions.join(" || ") + " ? 0 : 100;";
@@ -332,15 +344,31 @@
     if (eyeLayer) { eyeLayer.property("Transform").property("Opacity").expression = eyeExpression; }
     
     // --- (新) 重新排序所有图层以达到最终结构 ---
-    for (var k = 0; k < audioLayers.length; k++) { audioLayers[k].moveToBeginning(); }
-    for (var k = 0; k < textLayers.length; k++) { textLayers[k].moveToBeginning(); }
+    // Audio layers should usually be at the bottom or separate, as they are not visual.
+    // Moving them to beginning means they're at the top of the layer stack (visually first).
+    // Let's re-evaluate desired stacking order for clarity:
+    // Top (visible first): Big Mouth, Mid Mouth, Custom Image Layers, Eyes, Base, Text, Audio (bottom, non-visual)
+
+    // Move audio to bottom
+    for (var k = 0; k < audioLayers.length; k++) { audioLayers[k].moveToEnd(); } // Move to the very bottom
+
+    // Move text layers above audio
+    for (var k = 0; k < textLayers.length; k++) { textLayers[k].moveToBeginning(); } // Will be above audio if audio is at end
+
+    // Base layer
     if (baseLayer) { baseLayer.moveToBeginning(); }
-    if (eyeLayer) { eyeLayer.moveToBeginning(); } // 眼在base之上
+
+    // Eye layer (above base)
+    if (eyeLayer) { eyeLayer.moveToBeginning(); }
+
+    // Custom image layers (above eye/base)
     for (var k = 0; k < imageLayers.length; k++) { imageLayers[k].moveToBeginning(); }
+
+    // Mouth layers (on top of everything else for animation)
     if (midMouthLayer) { midMouthLayer.moveToBeginning(); }
-    if (bigMouthLayer) { bigMouthLayer.moveToBeginning(); } // 大嘴在最顶层
+    if (bigMouthLayer) { bigMouthLayer.moveToBeginning(); } // Big Mouth on top of Mid Mouth
 
     app.endUndoGroup();
-    alert("脚本执行完毕！\n已创建图层并完成排序，同时为嘴型和眼睛图层添加了动画表达式。");
+    alert("脚本执行完毕！\n已创建图层并完成排序，所有图层均基于SRT时间戳定位，同时为嘴型和眼睛图层添加了动画表达式。");
 
 })();

@@ -43,5 +43,5 @@ def renumber_srt(file_path):
         print(f"写入文件时出错：{e}")
 
 if __name__ == "__main__":
-    input_file = "E:\抽吧唧\在日本怎么看动画\original.srt"
+    input_file = "E:\\抽吧唧\\宅男跳舞真抽象\\名前のない怪物\\pr.srt"
     renumber_srt(input_file)

@@ -34,6 +34,11 @@ EN_TO_ZH_MAP = {
     'ani-one': '阿尼碗',
     'bilibili': '哔哩哔哩',
     'ip': '哀劈',
+    'dj': '缔结',
+    'wotagei': '哦塔盖',
+    'call' : '靠',
+    'egoist': '伊狗斯特',
+    'sekin': '塞可因',
 }
 
 # API请求参数
@@ -134,8 +139,8 @@ def generate_audio_for_text(text, text_lang, output_path):
         return False
 
 def main():
-    srt_file_path = "E:\\抽吧唧\\在日本怎么看动画\\original.srt"
-    output_dir = "E:\\抽吧唧\\在日本怎么看动画\\sub"
+    srt_file_path = "E:\\抽吧唧\\宅男跳舞真抽象\\名前のない怪物\\1.srt"
+    output_dir = "E:\\抽吧唧\\宅男跳舞真抽象\\名前のない怪物\\sub"
     os.makedirs(output_dir, exist_ok=True)
 
     if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
@@ -189,7 +194,7 @@ if __name__ == "__main__":
     output_dir = "E:\\抽吧唧"
     os.makedirs(output_dir, exist_ok=True)
     # 测试文本 (包含j:前缀, |忽略部分, 和需要替换的英文)
-    raw_text_to_test = "改变你的IP地址"
+    raw_text_to_test = "j:パクチソン 体操"
     print(f"\n--- 运行单条文本测试 ---\n原始文本: \"{raw_text_to_test}\"")
     # 1. 语言识别和'|'分割
     target_lang = GPT_SOVITS_PARAMS['text_lang']
