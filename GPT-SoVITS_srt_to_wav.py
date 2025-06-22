@@ -39,6 +39,16 @@ EN_TO_ZH_MAP = {
     'call' : '靠',
     'egoist': '伊狗斯特',
     'sekin': '塞可因',
+    'himehina': '黑莓黑呐',
+    'vtuber': '微吐呗儿',
+    'hime': '黑莓',
+    'hina': '黑呐',
+    'bubblin': '巴布林',
+    'nijisanji': '彩虹社',
+    'hololive': '喉楼莱芜',
+    'dancehall': '当斯后',
+    'echo': '伊口',
+    'kizunaai': '绊爱',
 }
 
 # API请求参数
@@ -106,7 +116,7 @@ def parse_srt_file(file_path):
 def sanitize_filename(text, max_length=50):
     """清理文本，使其可以安全地用作文件名的一部分。"""
     sanitized = re.sub(r'[\\/*?:"<>|]', '', text)
-    sanitized = sanitized.replace(' ', '_')
+    sanitized = sanitized.replace(' ', '')
     return sanitized[:max_length]
 
 def replace_english_words(text):
@@ -139,8 +149,8 @@ def generate_audio_for_text(text, text_lang, output_path):
         return False
 
 def main():
-    srt_file_path = "E:\\抽吧唧\\宅男跳舞真抽象\\名前のない怪物\\1.srt"
-    output_dir = "E:\\抽吧唧\\宅男跳舞真抽象\\名前のない怪物\\sub"
+    srt_file_path = "E:\\抽吧唧\\himehina\\pr.srt"
+    output_dir = "E:\\抽吧唧\\himehina\\sub"
     os.makedirs(output_dir, exist_ok=True)
 
     if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
@@ -187,32 +197,32 @@ def main():
 
 if __name__ == "__main__":
     # 要运行完整的SRT处理流程，请取消下面一行的注释
-    # main()
+    main()
 
     ####### 临时测试区 #######
-    if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
-    output_dir = "E:\\抽吧唧"
-    os.makedirs(output_dir, exist_ok=True)
-    # 测试文本 (包含j:前缀, |忽略部分, 和需要替换的英文)
-    raw_text_to_test = "j:パクチソン 体操"
-    print(f"\n--- 运行单条文本测试 ---\n原始文本: \"{raw_text_to_test}\"")
-    # 1. 语言识别和'|'分割
-    target_lang = GPT_SOVITS_PARAMS['text_lang']
-    if raw_text_to_test.strip().startswith('j:'):
-        target_lang = 'ja'
-        text_for_filename = raw_text_to_test.strip()[2:].strip()
-        print("   检测到 'j:' 前缀，语言切换为日语。")
-    else:
-        text_for_filename = raw_text_to_test.strip()
-    text_for_filename = text_for_filename.split('|')[0].strip()
-    # 2. 生成文件名
-    if text_for_filename:
-        safe_text = sanitize_filename(text_for_filename)
-        output_filename = f"0000_{target_lang}_{safe_text}.wav"
-        output_filepath = os.path.join(output_dir, output_filename)
-        # 3. 英文替换
-        text_for_synthesis = replace_english_words(text_for_filename)
-        if text_for_synthesis != text_for_filename:
-            print(f"   英文词替换: \"{text_for_filename}\" -> \"{text_for_synthesis}\"")
-        # 4. 生成音频
-        generate_audio_for_text(text_for_synthesis, target_lang, output_filepath)
+    # if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
+    # output_dir = "E:\\抽吧唧"
+    # os.makedirs(output_dir, exist_ok=True)
+    # # 测试文本 (包含j:前缀, |忽略部分, 和需要替换的英文)
+    # raw_text_to_test = "j:パクチソン 体操"
+    # print(f"\n--- 运行单条文本测试 ---\n原始文本: \"{raw_text_to_test}\"")
+    # # 1. 语言识别和'|'分割
+    # target_lang = GPT_SOVITS_PARAMS['text_lang']
+    # if raw_text_to_test.strip().startswith('j:'):
+    #     target_lang = 'ja'
+    #     text_for_filename = raw_text_to_test.strip()[2:].strip()
+    #     print("   检测到 'j:' 前缀，语言切换为日语。")
+    # else:
+    #     text_for_filename = raw_text_to_test.strip()
+    # text_for_filename = text_for_filename.split('|')[0].strip()
+    # # 2. 生成文件名
+    # if text_for_filename:
+    #     safe_text = sanitize_filename(text_for_filename)
+    #     output_filename = f"0000_{target_lang}_{safe_text}.wav"
+    #     output_filepath = os.path.join(output_dir, output_filename)
+    #     # 3. 英文替换
+    #     text_for_synthesis = replace_english_words(text_for_filename)
+    #     if text_for_synthesis != text_for_filename:
+    #         print(f"   英文词替换: \"{text_for_filename}\" -> \"{text_for_synthesis}\"")
+    #     # 4. 生成音频
+    #     generate_audio_for_text(text_for_synthesis, target_lang, output_filepath)

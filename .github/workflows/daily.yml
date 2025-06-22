@@ -1,0 +1,53 @@
+# 工作流的名称
+name: Auto-collect YouTube Stats
+
+on:
+  # 触发工作流的事件
+  schedule:
+    # 使用Cron表达式来定时运行
+    # '0 15 * * *' 代表在每天的15:00 UTC时间运行。
+    # 这对应于日本标准时间(JST, UTC+9)的午夜00:00 (15 + 9 = 24)。
+    - cron: '0 15 * * *'
+  
+  # 允许您在Actions页面手动触发此工作流，方便测试
+  workflow_dispatch:
+
+jobs:
+  collect-and-commit:
+    # 任务运行的虚拟环境
+    runs-on: ubuntu-latest
+
+    steps:
+      # 第1步：检出您的仓库代码
+      # 使得工作流可以访问您的 collect_data.py 和其他文件
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 第2步：设置Python环境
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # 您可以指定需要的Python版本
+
+      # 第3步：安装依赖库
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 第4步：运行数据收集脚本
+      # 关键：这里我们将GitHub Secret传递给脚本所需的环境变量
+      - name: Run data collection script
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python collect_data.py
+
+      # 第5步：提交更新后的数据文件
+      # 使用一个现成的Action来自动处理git的add, commit, push操作
+      - name: Commit and push if changed
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          # 提交信息
+          commit_message: "📊 Data Update: Auto-collected YouTube stats"
+          # 要提交的文件，这里我们只关心数据文件
+          file_pattern: "subscriber_history.csv"
