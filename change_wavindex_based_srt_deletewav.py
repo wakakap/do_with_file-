@@ -171,8 +171,8 @@ if __name__ == "__main__":
     # wav_folder_path = r"C:\Users\YourUser\Documents\MyProject\wav_files"
 
     # 如果是macOS或Linux系统，直接使用正斜杠 (/)
-    srt_file_path = "E:\\抽吧唧\\himehina\\pr.srt"
-    wav_folder_path = "E:\\抽吧唧\\himehina\\sub"
+    srt_file_path = "E:\\抽吧唧\\もりもり\\pr.srt"
+    wav_folder_path = "E:\\抽吧唧\\もりもり\\sub"
 
     # --- ----------------------------------------------- ---
 

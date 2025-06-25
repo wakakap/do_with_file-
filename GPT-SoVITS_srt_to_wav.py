@@ -14,75 +14,52 @@ SOVITS_WEIGHTS_PATH = "D:\\GPT-SoVITS_\\GPT-SoVITS-v4-20250422fix\\SoVITS_weight
 
 # 英文替换为中文的对应表 (不区分大小写)
 EN_TO_ZH_MAP = {
-    'amazon': '亚马逊',
-    'abema': '啊百马',
-    # 在这里添加更多对应关系，例如:
-    'google': '谷歌',
-    'youtube': '油管',
-    'twitter': '推特',
-    'facebook': '脸书',
-    'instagram': '因斯特古拉姆',
-    'tver': '梯瓦儿',
-    'netflix': '网飞',
-    'disney': '迪士尼',
-    'hulu': '呼噜',
-    'line': '烂',
-    'mono': '莫诺',
-    'u-next': '优奈克斯特',
-    'niconico': '妮口妮口',
-    'at-x': '艾踢艾克斯',
-    'ani-one': '阿尼碗',
-    'bilibili': '哔哩哔哩',
-    'ip': '哀劈',
-    'dj': '缔结',
-    'wotagei': '哦塔盖',
-    'call' : '靠',
-    'egoist': '伊狗斯特',
-    'sekin': '塞可因',
-    'himehina': '黑莓黑呐',
-    'vtuber': '微吐呗儿',
-    'hime': '黑莓',
-    'hina': '黑呐',
-    'bubblin': '巴布林',
-    'nijisanji': '彩虹社',
-    'hololive': '喉楼莱芜',
-    'dancehall': '当斯后',
-    'echo': '伊口',
-    'kizunaai': '绊爱',
+    'amazon': '亚马逊', 'abema': '啊百马', 'google': '谷歌', 'youtube': '油管',
+    'twitter': '推特', 'facebook': '脸书', 'instagram': '因斯特古拉姆', 'tver': '梯瓦儿',
+    'netflix': '网飞', 'disney': '迪士尼', 'hulu': '呼噜', 'line': '烂', 'mono': '莫诺',
+    'u-next': '优奈克斯特', 'niconico': '妮口妮口', 'at-x': '艾踢艾克斯', 'ani-one': '阿尼碗',
+    'bilibili': '哔哩哔哩', 'ip': '哀劈', 'dj': '缔结', 'wotagei': '哦塔盖', 'call' : '靠',
+    'egoist': '伊狗斯特', 'sekin': '塞可因', 'himehina': '黑莓黑呐', 'vtuber': '微吐呗儿',
+    'hime': '黑莓', 'hina': '黑呐', 'bubblin': '巴布林', 'nijisanji': '彩虹社',
+    'hololive': '喉楼莱芜', 'dancehall': '当斯后', 'echo': '伊口', 'kizunaai': '绊爱',
 }
 
-# API请求参数
-GPT_SOVITS_PARAMS = {
-    # 参考音频设置
-    "ref_audio_path": "D:\\GPT-SoVITS_\\zundamon\\今日は最高の一日だった！課題とか全然やってないけど、まぁ、明日頑張ればいいよね.wav",
-    "prompt_text": "今日は最高の一日だった！課題とか全然やってないけど、まぁ、明日頑張ればいいよね",
-    "prompt_lang": "ja",
-    # 默认的文本和语言设置
-    "text_lang": "zh",  # 可选: ja, zh, en
-    # 合成参数
-    "top_k": 5, 
-    "top_p": 1, 
-    "temperature": 1, 
-    "text_split_method": 
-    "cut5",
-    "batch_size": 1, 
-    "batch_threshold": 0.75, 
-    "split_bucket": True,
-    "speed_factor": 1.15, 
-    "fragment_interval": 0.3, 
-    "seed": -1,
-    "parallel_infer": True, 
-    "media_type": "wav", 
-    "streaming_mode": False,
-    "repetition_penalty": 1.35, 
-    "sample_steps": 24, 
-    "super_sampling": False,
+# --- (新) GPT-SoVITS 参数模板 ---
+# 定义两种不同的声音配置模板：“普”为普通状态，“翻”为特殊状态。
+# 您可以稍后自行修改“翻”模板中的参数（如temperature, speed_factor等）以实现不同的声线效果。
+TTS_TEMPLATES = {
+    "普": {
+        # 参考音频设置
+        "ref_audio_path": "D:\\GPT-SoVITS_\\zundamon\\今日は最高の一日だった！課題とか全然やってないけど、まぁ、明日頑張ればいいよね.wav",
+        "prompt_text": "今日は最高の一日だった！課題とか全然やってないけど、まぁ、明日頑張ればいいよね",
+        "prompt_lang": "ja",
+        # 默认的文本和语言设置
+        "text_lang": "zh",  # 可选: ja, zh, en
+        # 合成参数
+        "top_k": 5, "top_p": 1, "temperature": 1, "text_split_method": "cut5",
+        "batch_size": 1, "batch_threshold": 0.75, "split_bucket": True,
+        "speed_factor": 1.15, "fragment_interval": 0.3, "seed": -1,
+        "parallel_infer": True, "media_type": "wav", "streaming_mode": False,
+        "repetition_penalty": 1.35, "sample_steps": 24, "super_sampling": False,
+    },
+    "翻": {
+        # 在初始状态下，参数与“普”相同。请在此处修改参数以形成不同声线。
+        "ref_audio_path": "D:\\GPT-SoVITS_\\zundamon\\今日は最高の一日だった！課題とか全然やってないけど、まぁ、明日頑張ればいいよね_tuntun.wav",
+        "prompt_text": "今日は最高の一日だった！課題とか全然やってないけど、まぁ、明日頑張ればいいよね",
+        "prompt_lang": "ja",
+        "text_lang": "zh",
+        "top_k": 5, "top_p": 1, "temperature": 1, "text_split_method": "cut5",
+        "batch_size": 1, "batch_threshold": 0.75, "split_bucket": True,
+        "speed_factor": 1.15, "fragment_interval": 0.3, "seed": 777,
+        "parallel_infer": True, "media_type": "wav", "streaming_mode": False,
+        "repetition_penalty": 1.35, "sample_steps": 24, "super_sampling": False,
+    }
 }
+
 
 def switch_models(gpt_path, sovits_path):
     """切换GPT和SoVITS模型"""
     print("\n--- 🔄 正在切换模型 ---")
-    # 切换GPT模型
     if gpt_path:
         print(f"  切换GPT模型: {os.path.basename(gpt_path)}")
         try:
@@ -90,7 +67,6 @@ def switch_models(gpt_path, sovits_path):
             if r.ok and r.json().get("message") == "success": print("  ✔️ GPT模型切换成功。")
             else: print(f"  ❌ GPT模型切换失败。状态码: {r.status_code}"); return False
         except requests.exceptions.RequestException as e: print(f"  ❌ 切换GPT模型时网络错误: {e}"); return False
-    # 切换SoVITS模型
     if sovits_path:
         print(f"  切换SoVITS模型: {os.path.basename(sovits_path)}")
         try:
@@ -121,24 +97,25 @@ def sanitize_filename(text, max_length=50):
 
 def replace_english_words(text):
     """根据 EN_TO_ZH_MAP 表，将文本中的英文单词替换为对应的中文。"""
-    if not any(c.isalpha() for c in text): return text # 如果没有字母，直接返回
+    if not any(c.isalpha() for c in text): return text
     def get_replacement(match):
         word = match.group(0)
-        return EN_TO_ZH_MAP.get(word.lower(), word) # 查找小写版本，找不到则返回原词
+        return EN_TO_ZH_MAP.get(word.lower(), word)
     return re.sub(r'[a-zA-Z]+(?:-[a-zA-Z]+)*', get_replacement, text, flags=re.IGNORECASE)
 
-def generate_audio_for_text(text, text_lang, output_path):
+def generate_audio_for_text(text, text_lang, output_path, params_template):
+    """根据指定的参数模板生成音频"""
     if os.path.exists(output_path):
         print(f"   ⚠️ 文件已存在，跳过合成: {os.path.basename(output_path)}")
-        return True # 无需执行
-    payload = GPT_SOVITS_PARAMS.copy()
+        return True
+    
+    payload = params_template.copy()
     payload['text'], payload['text_lang'] = text, text_lang
     print(f"   合成中 (语言: {text_lang}): \"{text[:50]}...\"")
     try:
         response = requests.post(API_URL, json=payload, timeout=120)
         if response.ok and 'audio/wav' in response.headers.get('Content-Type', ''):
-            with open(output_path, "wb") as f:
-                f.write(response.content)
+            with open(output_path, "wb") as f: f.write(response.content)
             print(f"   ✔️ 音频已保存: {os.path.basename(output_path)}")
             return True
         else:
@@ -149,8 +126,8 @@ def generate_audio_for_text(text, text_lang, output_path):
         return False
 
 def main():
-    srt_file_path = "E:\\抽吧唧\\himehina\\pr.srt"
-    output_dir = "E:\\抽吧唧\\himehina\\sub"
+    srt_file_path = "E:\\抽吧唧\\もりもり\\pr.srt"
+    output_dir = "E:\\抽吧唧\\もりもり\\sub"
     os.makedirs(output_dir, exist_ok=True)
 
     if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
@@ -163,66 +140,91 @@ def main():
     for i, sub in enumerate(subtitles):
         print(f"\n--- 处理字幕 {i+1}/{total} (序号: {sub['index']}) ---")
 
-        # 1. 语言识别和'|'分割
+        # --- (新) 文本解析与模板选择逻辑 ---
         raw_text = sub['text']
-        target_lang = GPT_SOVITS_PARAMS['text_lang']
-        if raw_text.strip().startswith('j:'):
+        text_to_process = raw_text.strip()
+        
+        # 1. 确定语言
+        target_lang = TTS_TEMPLATES["普"]["text_lang"] # 先从默认模板获取语言
+        if text_to_process.lower().startswith('j:'):
             target_lang = 'ja'
-            text_for_filename = raw_text.strip()[2:].strip()
+            text_to_process = text_to_process[2:].strip()
             print("   检测到 'j:' 前缀，语言切换为日语。")
-        else:
-            text_for_filename = raw_text.strip()
-        text_for_filename = text_for_filename.split('|')[0].strip()
 
-        if not text_for_filename:
+        # 2. 分割文本并确定要使用的参数模板
+        parts = text_to_process.split('|')
+        text_for_processing = parts[0].strip()
+        
+        chosen_template_name = "普" # 默认使用“普”模板
+        if len(parts) > 2 and parts[2].strip() == '翻':
+            chosen_template_name = "翻"
+            print(f"   检测到 '翻' 标记，使用“{chosen_template_name}”声音模板。")
+        else:
+            print(f"   使用“{chosen_template_name}”声音模板。")
+        
+        chosen_template = TTS_TEMPLATES[chosen_template_name]
+        
+        if not text_for_processing:
             print("   ⚠️ 文本预处理后为空，跳过此字幕。")
             continue
+        # --- (新) 逻辑结束 ---
 
-        # 2. 生成文件名 (使用替换前的文本)
-        safe_text = sanitize_filename(text_for_filename)
+        # 3. 生成文件名
+        safe_text = sanitize_filename(text_for_processing)
         output_filename = f"{sub['index'].zfill(4)}_{target_lang}_{safe_text}.wav"
         output_filepath = os.path.join(output_dir, output_filename)
 
-        # 3. 英文替换 (仅用于语音合成)
-        text_for_synthesis = replace_english_words(text_for_filename)
-        if text_for_synthesis != text_for_filename:
-            print(f"   英文词替换: \"{text_for_filename}\" -> \"{text_for_synthesis}\"")
+        # 4. 英文替换
+        text_for_synthesis = replace_english_words(text_for_processing)
+        if text_for_synthesis != text_for_processing:
+            print(f"   英文词替换: \"{text_for_processing}\" -> \"{text_for_synthesis}\"")
 
-        # 4. 生成音频
-        if generate_audio_for_text(text_for_synthesis, target_lang, output_filepath):
+        # 5. 生成音频 (传入选择的模板)
+        if generate_audio_for_text(text_for_synthesis, target_lang, output_filepath, chosen_template):
             success_count += 1
         time.sleep(0.5)
 
     print(f"\n🎉 处理完成！成功生成 {success_count}/{total} 个文件。输出目录: {output_dir}")
 
 if __name__ == "__main__":
-    # 要运行完整的SRT处理流程，请取消下面一行的注释
-    main()
+    # main()
 
     ####### 临时测试区 #######
-    # if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
-    # output_dir = "E:\\抽吧唧"
-    # os.makedirs(output_dir, exist_ok=True)
-    # # 测试文本 (包含j:前缀, |忽略部分, 和需要替换的英文)
-    # raw_text_to_test = "j:パクチソン 体操"
-    # print(f"\n--- 运行单条文本测试 ---\n原始文本: \"{raw_text_to_test}\"")
-    # # 1. 语言识别和'|'分割
-    # target_lang = GPT_SOVITS_PARAMS['text_lang']
-    # if raw_text_to_test.strip().startswith('j:'):
-    #     target_lang = 'ja'
-    #     text_for_filename = raw_text_to_test.strip()[2:].strip()
-    #     print("   检测到 'j:' 前缀，语言切换为日语。")
-    # else:
-    #     text_for_filename = raw_text_to_test.strip()
-    # text_for_filename = text_for_filename.split('|')[0].strip()
-    # # 2. 生成文件名
-    # if text_for_filename:
-    #     safe_text = sanitize_filename(text_for_filename)
-    #     output_filename = f"0000_{target_lang}_{safe_text}.wav"
-    #     output_filepath = os.path.join(output_dir, output_filename)
-    #     # 3. 英文替换
-    #     text_for_synthesis = replace_english_words(text_for_filename)
-    #     if text_for_synthesis != text_for_filename:
-    #         print(f"   英文词替换: \"{text_for_filename}\" -> \"{text_for_synthesis}\"")
-    #     # 4. 生成音频
-    #     generate_audio_for_text(text_for_synthesis, target_lang, output_filepath)
+    # 要运行单条文本测试，请取消下面代码块的注释
+    if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
+    output_dir = "E:\\抽吧唧"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 测试文本1: 普通情况
+    # raw_text_to_test = "这是一条普通中文|image_name"
+    # 测试文本2: “翻”标记
+    raw_text_to_test = "j: まわれ!せつげつか"
+    # 测试文本3: 日语 + “翻”标记
+    # raw_text_to_test = "j:これは特別な声です|image_name|翻"
+    
+    print(f"\n--- 运行单条文本测试 ---\n原始文本: \"{raw_text_to_test}\"")
+    
+    text_to_process = raw_text_to_test.strip()
+    target_lang = TTS_TEMPLATES["普"]["text_lang"]
+    if text_to_process.lower().startswith('j:'):
+        target_lang = 'ja'
+        text_to_process = text_to_process[2:].strip()
+        print("   检测到 'j:' 前缀，语言切换为日语。")
+        
+    parts = text_to_process.split('|')
+    text_for_processing = parts[0].strip()
+    
+    chosen_template_name = "普"
+    if len(parts) > 2 and parts[2].strip() == '翻':
+        chosen_template_name = "翻"
+    print(f"   选择模板: “{chosen_template_name}”")
+    chosen_template = TTS_TEMPLATES[chosen_template_name]
+    
+    if text_for_processing:
+        safe_text = sanitize_filename(text_for_processing)
+        output_filename = f"__TEST__0000_{target_lang}_{safe_text}.wav"
+        output_filepath = os.path.join(output_dir, output_filename)
+        text_for_synthesis = replace_english_words(text_for_processing)
+        generate_audio_for_text(text_for_synthesis, target_lang, output_filepath, chosen_template)
+    else:
+        print("   ⚠️ 测试文本经处理后为空，已跳过。")
