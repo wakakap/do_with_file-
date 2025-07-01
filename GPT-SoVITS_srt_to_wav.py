@@ -21,7 +21,7 @@ EN_TO_ZH_MAP = {
     'bilibili': '哔哩哔哩', 'ip': '哀劈', 'dj': '缔结', 'wotagei': '哦塔盖', 'call' : '靠',
     'egoist': '伊狗斯特', 'sekin': '塞可因', 'himehina': '黑莓黑呐', 'vtuber': '微吐呗儿',
     'hime': '黑莓', 'hina': '黑呐', 'bubblin': '巴布林', 'nijisanji': '彩虹社',
-    'hololive': '喉楼莱芜', 'dancehall': '当斯后', 'echo': '伊口', 'kizunaai': '绊爱',
+    'hololive': '喉楼莱芜', 'dancehall': '当斯后', 'echo': '伊口', 'kizunaai': '绊爱','merukari': '梅露卡利','keroro': '凯喽喽',
 }
 
 # --- (新) GPT-SoVITS 参数模板 ---
@@ -38,9 +38,9 @@ TTS_TEMPLATES = {
         # 合成参数
         "top_k": 5, "top_p": 1, "temperature": 1, "text_split_method": "cut5",
         "batch_size": 1, "batch_threshold": 0.75, "split_bucket": True,
-        "speed_factor": 1.15, "fragment_interval": 0.3, "seed": -1,
+        "speed_factor": 1.15, "fragment_interval": 0.3, "seed": 7777777,
         "parallel_infer": True, "media_type": "wav", "streaming_mode": False,
-        "repetition_penalty": 1.35, "sample_steps": 24, "super_sampling": False,
+        "repetition_penalty": 1.35, "sample_steps": 32, "super_sampling": False,
     },
     "翻": {
         # 在初始状态下，参数与“普”相同。请在此处修改参数以形成不同声线。
@@ -126,8 +126,8 @@ def generate_audio_for_text(text, text_lang, output_path, params_template):
         return False
 
 def main():
-    srt_file_path = "E:\\抽吧唧\\もりもり\\pr.srt"
-    output_dir = "E:\\抽吧唧\\もりもり\\sub"
+    srt_file_path = "E:\\抽吧唧\\melonbooks\\new.srt"
+    output_dir = "E:\\抽吧唧\\melonbooks\\sub"
     os.makedirs(output_dir, exist_ok=True)
 
     if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
@@ -187,44 +187,44 @@ def main():
     print(f"\n🎉 处理完成！成功生成 {success_count}/{total} 个文件。输出目录: {output_dir}")
 
 if __name__ == "__main__":
-    # main()
+    main()
 
     ####### 临时测试区 #######
     # 要运行单条文本测试，请取消下面代码块的注释
-    if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
-    output_dir = "E:\\抽吧唧"
-    os.makedirs(output_dir, exist_ok=True)
+    # if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)
+    # output_dir = "E:\\抽吧唧"
+    # os.makedirs(output_dir, exist_ok=True)
     
-    # 测试文本1: 普通情况
-    # raw_text_to_test = "这是一条普通中文|image_name"
-    # 测试文本2: “翻”标记
-    raw_text_to_test = "j: まわれ!せつげつか"
-    # 测试文本3: 日语 + “翻”标记
-    # raw_text_to_test = "j:これは特別な声です|image_name|翻"
+    # # 测试文本1: 普通情况
+    # # raw_text_to_test = "这是一条普通中文|image_name"
+    # # 测试文本2: “翻”标记
+    # raw_text_to_test = "这个词好像挺有意境的"
+    # # 测试文本3: 日语 + “翻”标记
+    # # raw_text_to_test = "j:これは特別な声です|image_name|翻"
     
-    print(f"\n--- 运行单条文本测试 ---\n原始文本: \"{raw_text_to_test}\"")
+    # print(f"\n--- 运行单条文本测试 ---\n原始文本: \"{raw_text_to_test}\"")
     
-    text_to_process = raw_text_to_test.strip()
-    target_lang = TTS_TEMPLATES["普"]["text_lang"]
-    if text_to_process.lower().startswith('j:'):
-        target_lang = 'ja'
-        text_to_process = text_to_process[2:].strip()
-        print("   检测到 'j:' 前缀，语言切换为日语。")
+    # text_to_process = raw_text_to_test.strip()
+    # target_lang = TTS_TEMPLATES["普"]["text_lang"]
+    # if text_to_process.lower().startswith('j:'):
+    #     target_lang = 'ja'
+    #     text_to_process = text_to_process[2:].strip()
+    #     print("   检测到 'j:' 前缀，语言切换为日语。")
         
-    parts = text_to_process.split('|')
-    text_for_processing = parts[0].strip()
+    # parts = text_to_process.split('|')
+    # text_for_processing = parts[0].strip()
     
-    chosen_template_name = "普"
-    if len(parts) > 2 and parts[2].strip() == '翻':
-        chosen_template_name = "翻"
-    print(f"   选择模板: “{chosen_template_name}”")
-    chosen_template = TTS_TEMPLATES[chosen_template_name]
+    # chosen_template_name = "普"
+    # if len(parts) > 2 and parts[2].strip() == '翻':
+    #     chosen_template_name = "翻"
+    # print(f"   选择模板: “{chosen_template_name}”")
+    # chosen_template = TTS_TEMPLATES[chosen_template_name]
     
-    if text_for_processing:
-        safe_text = sanitize_filename(text_for_processing)
-        output_filename = f"__TEST__0000_{target_lang}_{safe_text}.wav"
-        output_filepath = os.path.join(output_dir, output_filename)
-        text_for_synthesis = replace_english_words(text_for_processing)
-        generate_audio_for_text(text_for_synthesis, target_lang, output_filepath, chosen_template)
-    else:
-        print("   ⚠️ 测试文本经处理后为空，已跳过。")
+    # if text_for_processing:
+    #     safe_text = sanitize_filename(text_for_processing)
+    #     output_filename = f"__TEST__0000_{target_lang}_{safe_text}.wav"
+    #     output_filepath = os.path.join(output_dir, output_filename)
+    #     text_for_synthesis = replace_english_words(text_for_processing)
+    #     generate_audio_for_text(text_for_synthesis, target_lang, output_filepath, chosen_template)
+    # else:
+    #     print("   ⚠️ 测试文本经处理后为空，已跳过。")

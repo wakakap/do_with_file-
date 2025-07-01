@@ -80,8 +80,8 @@ def revise_srt(srt_file_path, wav_folder_path):
 
 if __name__ == "__main__":
         # --- 请在这里修改你的SRT文件和WAV文件夹路径 ---
-        my_srt_file = "E:\\抽吧唧\\もりもり\\反省会.srt"
-        my_wav_folder = "E:\\抽吧唧\\もりもり\\sub"
+        my_srt_file = "E:\\抽吧唧\\melonbooks\\new.srt"
+        my_wav_folder = "E:\\抽吧唧\\melonbooks\\sub"
         # -----------------------------------------------
 
         # 检查文件和文件夹是否存在
