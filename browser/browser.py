@@ -27,13 +27,16 @@ CARD_BORDER_COLOR = "#333333"
 FONT_FILE_NAME = "LXGWWenKai-Light.ttf"
 FONT_SIZE = 14
 IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+TAGS_X_PADDING = 7
 
 # --- 顏色主題 (Color Theme) ---
 BACKGROUND_COLOR = "#242424"
 TEXT_COLOR = "#FFFFFF"
 BUTTON_COLOR = "#3B3B3B"
-BUTTON_HOVER_COLOR = "#4A4A4A"
-CARD_BACKGROUND_COLOR = "#2E2E2E"
+BUTTON_HOVER_COLOR = "#888888"
+CARD_BACKGROUND_COLOR = "#494141"
+LABEL_START_COLOR = (95,15,64)  # 深橙色 (Dark Orange)
+LABEL_END_COLOR = (220,47,2)  # 浅橙色 (Light Orange)
 
 def natural_sort_key(s):
     removal_pattern = r'\([^)]*\)|\[[^\]]*\]'
@@ -111,6 +114,8 @@ class FileSystemBrowser(ctk.CTk):
 
         self.maintenance_button = ctk.CTkButton(self.maintenance_controls_frame, text="维护", width=80, command=self.toggle_maintenance_menu)
         self.maintenance_button.pack()
+        self.default_button_color = self.maintenance_button.cget("fg_color")
+        self.default_button_hover_color = self.maintenance_button.cget("hover_color")
         
         self.maintenance_menu = ctk.CTkFrame(self, fg_color=CARD_BACKGROUND_COLOR, border_color=CARD_BORDER_COLOR, border_width=1)
         gen_covers_button = ctk.CTkButton(self.maintenance_menu, text="生成封面", command=self.generate_covers)
@@ -139,8 +144,19 @@ class FileSystemBrowser(ctk.CTk):
             if self.in_tag_edit_mode:
                 self.prompt_save_tags_on_exit()
         else:
-            x = self.maintenance_button.winfo_rootx() - self.maintenance_menu.winfo_width() + self.maintenance_button.winfo_width()
-            y = self.maintenance_button.winfo_rooty() + self.maintenance_button.winfo_height()
+            # 使用 "winfo_reqwidth()" 来获取菜单所需的宽度，这个方法比 "winfo_width()" 更可靠
+            menu_width = self.maintenance_menu.winfo_reqwidth()
+            
+            # 获取按钮的位置和尺寸信息
+            button_x = self.maintenance_button.winfo_rootx()
+            button_y = self.maintenance_button.winfo_rooty()
+            button_height = self.maintenance_button.winfo_height()
+            button_width = self.maintenance_button.winfo_width()
+
+            # 计算菜单的x, y坐标，使其右侧与按钮的右侧对齐
+            x = button_x - menu_width + button_width
+            y = button_y + button_height
+
             self.maintenance_menu.place(x=x, y=y)
             self.maintenance_menu.lift()
 
@@ -216,7 +232,7 @@ class FileSystemBrowser(ctk.CTk):
             self.save_tags()
         self.in_tag_edit_mode = False
         self.temp_tags_data = {}
-        self.maintenance_button.configure(text="维护", fg_color=BUTTON_COLOR, hover_color=BUTTON_HOVER_COLOR, command=self.toggle_maintenance_menu)
+        self.maintenance_button.configure(text="维护",fg_color=self.default_button_color, hover_color=self.default_button_hover_color, command=self.toggle_maintenance_menu)
         self.refresh_current_view()
 
     def prompt_save_tags_on_exit(self):
@@ -249,11 +265,24 @@ class FileSystemBrowser(ctk.CTk):
             self.tags_data = {}
 
     def save_tags(self):
+        # --- 新增的排序逻辑开始 ---
+        tag_counts = {}
+        for tags_list in self.temp_tags_data.values():
+            for tag in tags_list:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        sorted_global_tags = sorted(tag_counts.keys(), key=lambda tag: (tag_counts[tag], tag), reverse=True)
+        # 索引越小，代表tag越常用
+        tag_order_map = {tag: i for i, tag in enumerate(sorted_global_tags)}
+        sorted_temp_tags_data = {}
+        for item_key, tags_list in self.temp_tags_data.items():
+            sorted_tags_for_item = sorted(tags_list, key=lambda tag: tag_order_map.get(tag, 9999)) # 使用 .get 防止新加的tag不在map中
+            sorted_temp_tags_data[item_key] = sorted_tags_for_item
         try:
             with open(self.tags_file_path, 'w', encoding='utf-8') as f:
-                json.dump(self.temp_tags_data, f, indent=4, ensure_ascii=False)
-            self.tags_data = json.loads(json.dumps(self.temp_tags_data))
-            messagebox.showinfo("成功", "Tag已成功保存。")
+                json.dump(sorted_temp_tags_data, f, indent=4, ensure_ascii=False)
+            self.tags_data = sorted_temp_tags_data
+            messagebox.showinfo("成功", "Tag已成功保存并排序。")
+
         except IOError as e:
             messagebox.showerror("Tag保存失败", f"无法写入 'tags.json': {e}")
 
@@ -264,25 +293,39 @@ class FileSystemBrowser(ctk.CTk):
         available_width = self.card_min_width - 26
         x_cursor, y_cursor = 0, 0
         line_height = 24
-        x_padding = 4
+        x_padding = TAGS_X_PADDING
 
         tags = self.temp_tags_data.get(item_key, []) if self.in_tag_edit_mode else self.tags_data.get(item_key, [])
         widgets_to_place = []
 
-        for tag in tags:
-            if self.in_tag_edit_mode:
+        if self.in_tag_edit_mode:
+            for tag in tags:
                 tag_unit_frame = ctk.CTkFrame(tags_frame, fg_color="transparent")
                 tag_label = ctk.CTkLabel(tag_unit_frame, text=tag, font=(self.display_font.cget("family"), FONT_SIZE-2), fg_color="#555555", corner_radius=5, padx=4)
                 tag_label.pack(side="left")
                 del_button = ctk.CTkButton(tag_unit_frame, text="x", width=16, height=16, fg_color="#C00000", hover_color="red", command=lambda k=item_key, t=tag, f=tags_frame: self.delete_tag(k, t, f))
                 del_button.pack(side="left", padx=(1,0))
                 widgets_to_place.append(tag_unit_frame)
-            else:
-                tag_label = ctk.CTkLabel(tags_frame, text=tag, font=(self.display_font.cget("family"), FONT_SIZE-2), fg_color="#444444", corner_radius=5, padx=4)
-                # --- 新增功能: 为普通模式下的Tag标签绑定左键点击事件 ---
+        else:
+            start_rgb = LABEL_START_COLOR
+            end_rgb = LABEL_END_COLOR
+            num_tags = len(tags)
+
+            for i, tag in enumerate(tags):
+                if num_tags > 1:
+                    ratio = i / (num_tags - 1)
+                else:
+                    ratio = 0
+
+                r = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * ratio)
+                g = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * ratio)
+                b = int(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * ratio)
+                hex_color = f'#{r:02x}{g:02x}{b:02x}'
+
+                tag_label = ctk.CTkLabel(tags_frame, text=tag, font=(self.display_font.cget("family"), FONT_SIZE-2), fg_color=hex_color, corner_radius=5, padx=4)
                 tag_label.bind("<Button-1>", lambda e, t=tag: self.perform_tag_search(t))
                 widgets_to_place.append(tag_label)
-        
+
         if self.in_tag_edit_mode:
             add_button = ctk.CTkButton(tags_frame, text="+", width=20, height=20, command=lambda k=item_key, f=tags_frame: self.add_tag(k, f))
             widgets_to_place.append(add_button)
@@ -294,6 +337,9 @@ class FileSystemBrowser(ctk.CTk):
                 x_cursor, y_cursor = 0, y_cursor + line_height
             widget.place(x=x_cursor, y=y_cursor)
             x_cursor += widget_width + x_padding
+
+        final_height = y_cursor + line_height if widgets_to_place else 1
+        tags_frame.configure(height=final_height)
 
     def add_tag(self, item_key, tags_frame):
         dialog = ctk.CTkInputDialog(text="输入新Tag:", title="添加Tag")
@@ -571,7 +617,7 @@ class FileSystemBrowser(ctk.CTk):
 
         if photo:
             image_label = ctk.CTkLabel(card_frame, text="", image=photo)
-            image_label.grid(row=0, column=0, padx=5, pady=5)
+            image_label.grid(row=0, column=0, padx=6, pady=6)
             # 仅对图片本身绑定左键点击
             image_label.bind("<Button-1>", left_click_callback)
         else:
@@ -585,9 +631,8 @@ class FileSystemBrowser(ctk.CTk):
         filename_label = ctk.CTkLabel(card_frame, text=display_name, wraplength=self.card_min_width - 20, justify=tkinter.LEFT, font=self.display_font, text_color=TEXT_COLOR)
         filename_label.grid(row=1, column=0, padx=10, pady=(5, 5), sticky="w")
         
-        tags_frame = ctk.CTkFrame(card_frame, fg_color="transparent", height=55)
-        tags_frame.grid_propagate(False)
-        tags_frame.grid(row=2, column=0, padx=8, pady=(0, 8), sticky="ew")
+        tags_frame = ctk.CTkFrame(card_frame, fg_color="transparent")
+        tags_frame.grid(row=2, column=0, padx=4, pady=(0, 4), sticky="ew")
         self.update_card_tags_display(tags_frame, name_no_ext)
 
         # 将右键返回事件绑定到卡片的各个主要组件上，确保响应
