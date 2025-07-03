@@ -627,7 +627,7 @@ class FileSystemBrowser(ctk.CTk):
             # 仅对占位符本身绑定左键点击
             text_placeholder.bind("<Button-1>", left_click_callback)
 
-        display_name = ("📁 " if is_dir else "📄 ") + (name_no_ext if not is_special_dir else name_no_ext[:-1] + " (图集)")
+        display_name = ("📁 " if is_dir else "📄 ") + (name_no_ext if not is_special_dir else name_no_ext[:-1] + "") #图集
         filename_label = ctk.CTkLabel(card_frame, text=display_name, wraplength=self.card_min_width - 20, justify=tkinter.LEFT, font=self.display_font, text_color=TEXT_COLOR)
         filename_label.grid(row=1, column=0, padx=10, pady=(5, 5), sticky="w")
         

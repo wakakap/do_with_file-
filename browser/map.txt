@@ -1,0 +1,17 @@
+.*?(?P<label>[A-Z]+)-(?P<number>\d+).*?,.*?{label}-{number}.*?
+\((.*?)\) \[(.*?)\] (?P<name>.*?) (?P<number>\d+).*?,{name}_{number}
+\((.*?)\) \[(.*?)\] (?P<name>.*?) (?P<digit>\d).*?,{name}_0{digit}.*?
+\((.*?)\) \[(.*?)\] (?P<name>.*?) (\d+).*?, {name}
+\((.*?)\) \[(.*?)\] (?P<name>.*?)(?P<number>\d+).*?,{name}_{number}
+\((.*?)\) \[(.*?)\] (?P<name>.*?)(?P<digit>\d).*?,{name}_0{digit}.*?
+\((.*?)\) \[(.*?)\] (?P<name>.*?)(\d+).*?, {name}
+(?P<name>.*?) (.*?)(?P<number>\d+).*?,{name}_{number}
+(?P<name>.*?) (.*?)(?P<digit>\d).*?,{name}_0{digit}.*?
+(?P<name>.*?) (.*?)(?P<number>\d+).*?,{name}
+(?P<name>.*?)_,{name}_01
+(?P<name>.*?)_,{name}01
+(?P<name>.*?),{name}_01
+(?P<name>.*?),{name}01
+(?P<name>.*?)_,{name}.*?
+(?P<name>.*?) .*?,{name}_01
+(?P<name>.*?) .*?,{name}01

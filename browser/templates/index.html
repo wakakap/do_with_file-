@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件系统媒体浏览器</title>
+    <style>
+        /* CSS 樣式與之前完全相同，此處省略以保持簡潔 */
+        :root { --background-color: #242424; --text-color: #FFFFFF; --button-color: #3B3B3B; --button-hover-color: #888888; --card-background-color: #494141; --card-border-color: #333333; --nav-text-color: #AAAAAA; --placeholder-text-color: #CCCCCC; --font-family: 'Microsoft YaHei', 'Segoe UI', 'WenQuanYi Micro Hei', sans-serif; --label-start-r: 95; --label-start-g: 15; --label-start-b: 64; --label-end-r: 220; --label-end-g: 47; --label-end-b: 2; }
+        body { background-color: var(--background-color); color: var(--text-color); font-family: var(--font-family); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .header-container, .nav-frame { padding: 10px 20px; flex-shrink: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .header-controls { display: flex; gap: 10px; }
+        .button, input[type="text"] { background-color: var(--button-color); color: var(--text-color); border: 1px solid var(--card-border-color); border-radius: 6px; padding: 8px 12px; font-size: 14px; cursor: pointer; transition: background-color 0.2s; }
+        .button:hover { background-color: var(--button-hover-color); }
+        input[type="text"] { width: 300px; }
+        input[type="text"]::placeholder { color: var(--placeholder-text-color); }
+        .nav-frame { color: var(--nav-text-color); font-size: 12px; padding-top: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .main-content { flex-grow: 1; overflow-y: auto; padding: 0 15px 15px 15px; }
+        #media-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+        #media-container.jav-mode { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+        .card { background-color: var(--card-background-color); border: 1px solid var(--card-border-color); border-radius: 8px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; }
+        .card-image-wrapper { width: 100%; background-color: #1E1E1E; display: flex; justify-content: center; align-items: center; color: var(--nav-text-color); font-size: 16px; text-align: center; padding: 10px; box-sizing: border-box; }
+        .manga-mode .card-image-wrapper { aspect-ratio: 2 / 3; }
+        .jav-mode .card-image-wrapper { aspect-ratio: 800 / 538; }
+        .card-image-wrapper img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .card-info { padding: 8px 12px; flex-grow: 1; display: flex; flex-direction: column; gap: 8px; }
+        .card-filename { font-size: 14px; word-break: break-all; }
+        .card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+        .card-tag { font-size: 12px; padding: 2px 6px; border-radius: 5px; color: white; cursor: pointer; transition: transform 0.1s; }
+        .card-tag:hover { transform: scale(1.05); }
+        .open-folder-btn { position: fixed; bottom: 20px; right: 20px; z-index: 50; }
+        #loading-indicator { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px; display: none; z-index: 2000; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .overlay.active { display: flex; }
+        .overlay .close-btn { position: absolute; top: 20px; right: 30px; font-size: 40px; color: white; cursor: pointer; z-index: 1010; text-shadow: 0 0 5px black; }
+        .overlay .close-btn:hover { color: #ff4d4d; }
+        #image-viewer { flex-direction: row; }
+        #image-viewer .image-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; height: 100%; padding: 20px 0 20px 20px; box-sizing: border-box; }
+        #image-viewer .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; opacity: 0; transition: opacity 0.3s ease-in-out; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        #image-viewer .progress-bar { width: 40px; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 20px 0; box-sizing: border-box; gap: 1px; cursor: pointer; }
+        #image-viewer .progress-segment { flex-grow: 1; width: 15px; background-color: #555; border-radius: 2px; margin: 0 auto; transition: background-color 0.2s; }
+        #image-viewer .progress-segment.active { background-color: #3B8ED0; }
+        #video-player video { max-width: 95vw; max-height: 95vh; outline: none; }
+        #fullscreen-btn { position: absolute; top: 25px; left: 30px; font-size: 28px; color: white; cursor: pointer; z-index: 1010; text-shadow: 0 0 5px black; }
+        #fullscreen-btn:hover { color: #87cefa; }
+    </style>
+</head>
+<body>
+    <div class="header-container">
+        <div class="header">
+            <div class="header-controls">
+                <button id="mode-switch-btn" class="button">切换至 JAV 模式</button>
+                <input type="text" id="search-input" placeholder="输入关键词搜索...">
+                <button id="search-btn" class="button">搜索</button>
+            </div>
+        </div>
+    </div>
+    <div class="nav-frame">
+        <span id="current-path-label">正在加载...</span>
+    </div>
+    <div class="main-content">
+        <div id="media-container" class="manga-mode"></div>
+    </div>
+    <button id="open-folder-btn" class="button open-folder-btn">打开所在目录</button>
+    <div id="loading-indicator">正在加载...</div>
+    <div id="image-viewer" class="overlay">
+        <span id="fullscreen-btn">⛶</span>
+        <span class="close-btn">&times;</span>
+        <div class="image-container">
+            <img id="current-image" src="" alt="viewer image">
+        </div>
+        <div id="progress-bar-container" class="progress-bar"></div>
+    </div>
+    <div id="video-player" class="overlay">
+        <span class="close-btn">&times;</span>
+        <video id="current-video" controls autoplay></video>
+    </div>
+    <template id="card-template">
+        <div class="card">
+            <div class="card-image-wrapper">
+                <img>
+                <span class="placeholder-text"></span>
+            </div>
+            <div class="card-info">
+                <div class="card-filename"></div>
+                <div class="card-tags"></div>
+            </div>
+        </div>
+    </template>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements (無變化) ---
+        const modeSwitchBtn = document.getElementById('mode-switch-btn');
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+        const pathLabel = document.getElementById('current-path-label');
+        const mediaContainer = document.getElementById('media-container');
+        const cardTemplate = document.getElementById('card-template');
+        const openFolderBtn = document.getElementById('open-folder-btn');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const imageViewer = document.getElementById('image-viewer');
+        const imageContainer = imageViewer.querySelector('.image-container');
+        const progressBarContainer = document.getElementById('progress-bar-container');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const videoPlayer = document.getElementById('video-player');
+        const currentImage = document.getElementById('current-image');
+        const currentVideo = document.getElementById('current-video');
+        const imageViewerCloseBtn = imageViewer.querySelector('.close-btn');
+        const videoPlayerCloseBtn = videoPlayer.querySelector('.close-btn');
+
+        // --- Application State (無變化) ---
+        let state = {
+            mode: 'MANGA', currentPath: '', pathStack: [], inSearchMode: false,
+            gallery: {
+                isOpen: false, baseMediaPath: '', files: [], currentIndex: 0, isLoading: false,
+            }
+        };
+        
+        // --- 核心修改：增強 showLoading 函式 ---
+        function showLoading(isLoading, clearContent = true) { // 新增 clearContent 參數，預設為 true
+            loadingIndicator.style.display = isLoading ? 'block' : 'none';
+            if (isLoading && clearContent) { // 只有在 clearContent 為 true 時才清空
+                mediaContainer.innerHTML = '';
+            }
+        }
+
+        // --- 核心修改：修改 openImageViewer 的 loading 調用 ---
+        function openImageViewer(fullPath, mediaPath) {
+            showLoading(true, false); // <--- 修改處：顯示載入提示，但不要清空背景
+            const url = `/api/gallery?mode=${state.mode}&path=${encodeURIComponent(fullPath)}`;
+            fetch(url).then(res => res.json()).then(files => {
+                showLoading(false, false); // <--- 修改處：隱藏載入提示
+                if (files && !files.error && files.length > 0) {
+                    state.gallery = { isOpen: true, baseMediaPath: mediaPath, files: files, currentIndex: 0, isLoading: false };
+                    imageViewer.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                    buildProgressBar();
+                    displayImage(0);
+                } else {
+                    alert('這個圖片集是空的或載入失敗！');
+                }
+            }).catch(err => {
+                showLoading(false, false); // <--- 修改處：出錯時也要隱藏
+                alert('載入圖片集失敗：' + err);
+            });
+        }
+
+        // --- fetchData 函式現在使用增強後的 showLoading ---
+        async function fetchData(url) {
+            showLoading(true, true); // 載入主內容時，需要清空
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error("Fetch error:", error);
+                mediaContainer.innerHTML = `<p style="padding:20px;">載入失敗: ${error.message}</p>`;
+                return null;
+            } finally {
+                showLoading(false, true);
+            }
+        }
+        
+        // --- 其他所有JS函式和事件監聽器保持不變 ---
+        function renderCards(items) {
+            mediaContainer.innerHTML = '';
+            if (!items || items.length === 0) { mediaContainer.innerHTML = '<p style="padding: 20px;">這個目錄是空的，或者沒有找到結果。</p>'; return; }
+            items.forEach(item => {
+                const cardClone = cardTemplate.content.cloneNode(true);
+                const cardEl = cardClone.querySelector('.card');
+                cardEl.dataset.path = item.full_path;
+                cardEl.dataset.mediaPath = item.media_path;
+                cardEl.dataset.isDir = item.is_dir;
+                cardEl.dataset.isSpecialDir = item.is_special_dir;
+                const imgEl = cardClone.querySelector('img');
+                const placeholderEl = cardClone.querySelector('.placeholder-text');
+                const filenameEl = cardClone.querySelector('.card-filename');
+                const tagsEl = cardClone.querySelector('.card-tags');
+                if (item.cover_filename) {
+                    imgEl.src = `/api/media/${state.mode}/cover/${encodeURIComponent(item.cover_filename)}`;
+                    imgEl.style.display = 'block'; placeholderEl.style.display = 'none';
+                } else {
+                    imgEl.style.display = 'none'; placeholderEl.style.display = 'block'; placeholderEl.textContent = item.name_no_ext;
+                }
+                const icon = item.is_dir ? '📁' : '📄';
+                const displayName = item.is_special_dir ? item.name_no_ext : item.name;
+                filenameEl.textContent = `${icon} ${displayName}`;
+                if (item.tags && item.tags.length > 0) {
+                    item.tags.forEach((tag, index) => {
+                        const tagEl = document.createElement('span');
+                        tagEl.className = 'card-tag';
+                        tagEl.textContent = tag;
+                        tagEl.dataset.tag = tag;
+                        const ratio = item.tags.length > 1 ? index / (item.tags.length - 1) : 0;
+                        const r = Math.round(95 * (1 - ratio) + 220 * ratio);
+                        const g = Math.round(15 * (1 - ratio) + 47 * ratio);
+                        const b = Math.round(64 * (1 - ratio) + 2 * ratio);
+                        tagEl.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                        tagsEl.appendChild(tagEl);
+                    });
+                }
+                mediaContainer.appendChild(cardClone);
+            });
+        }
+        function renderCardsStaggered(items, index = 0) { // 新增 staggered 渲染函式
+            if (index >= items.length) return; // 所有卡片都已載入，結束遞歸
+
+            // --- 這裡的程式碼是從舊的 renderCards 中複製的，只處理單個卡片 ---
+            const item = items[index];
+            const cardClone = cardTemplate.content.cloneNode(true);
+            const cardEl = cardClone.querySelector('.card');
+            cardEl.dataset.path = item.full_path;
+            cardEl.dataset.mediaPath = item.media_path;
+            cardEl.dataset.isDir = item.is_dir;
+            cardEl.dataset.isSpecialDir = item.is_special_dir;
+            const imgEl = cardClone.querySelector('img');
+            const placeholderEl = cardClone.querySelector('.placeholder-text');
+            const filenameEl = cardClone.querySelector('.card-filename');
+            const tagsEl = cardClone.querySelector('.card-tags');
+            if (item.cover_filename) {
+                imgEl.src = `/api/media/${state.mode}/cover/${encodeURIComponent(item.cover_filename)}`;
+                imgEl.style.display = 'block'; placeholderEl.style.display = 'none';
+            } else {
+                imgEl.style.display = 'none'; placeholderEl.style.display = 'block'; placeholderEl.textContent = item.name_no_ext;
+            }
+            const icon = item.is_dir ? '📁' : '📄';
+            const displayName = item.is_special_dir ? item.name_no_ext : item.name;
+            filenameEl.textContent = `${icon} ${displayName}`;
+            if (item.tags && item.tags.length > 0) {
+                item.tags.forEach((tag, tagIndex) => {
+                    const tagEl = document.createElement('span');
+                    tagEl.className = 'card-tag';
+                    tagEl.textContent = tag;
+                    tagEl.dataset.tag = tag;
+                    const ratio = item.tags.length > 1 ? tagIndex / (item.tags.length - 1) : 0;
+                    const r = Math.round(95 * (1 - ratio) + 220 * ratio);
+                    const g = Math.round(15 * (1 - ratio) + 47 * ratio);
+                    const b = Math.round(64 * (1 - ratio) + 2 * ratio);
+                    tagEl.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                    tagsEl.appendChild(tagEl);
+                });
+            }
+            mediaContainer.appendChild(cardClone);
+            // --- 單個卡片處理結束 ---
+
+            // 使用 setTimeout 來調度下一個卡片的渲染，模擬延遲
+            setTimeout(() => {
+                renderCardsStaggered(items, index + 1);
+            }, 15); // 這裡的延遲可以調整，15ms效果不錯
+        }
+        async function browse(path = '') {
+            state.inSearchMode = false; searchInput.value = '';
+            const url = path ? `/api/browse?mode=${state.mode}&path=${encodeURIComponent(path)}` : `/api/browse?mode=${state.mode}`;
+            const data = await fetchData(url);
+            if (data && data.items) {
+                state.currentPath = data.current_path;
+                if (!state.pathStack.length || state.pathStack[state.pathStack.length - 1] !== data.current_path) { state.pathStack.push(data.current_path); }
+                pathLabel.textContent = `模式: ${state.mode} | ${state.currentPath}`;
+                // renderCards(data.items);
+                mediaContainer.innerHTML = ''; // 先清空
+                renderCardsStaggered(data.items); // 使用新的動態載入函式
+            }
+        }
+        async function search(query, type = 'keyword') {
+            if (!query) return; state.inSearchMode = true;
+            const url = `/api/search?mode=${state.mode}&q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}`;
+            const data = await fetchData(url);
+            if (data && data.items) {
+                const searchLabel = type === 'tag' ? `標籤搜索: "${query}"` : `關鍵詞搜索: "${query}"`;
+                pathLabel.textContent = searchLabel; 
+                // renderCards(data.items);
+                mediaContainer.innerHTML = ''; // 先清空
+                renderCardsStaggered(data.items); // 使用新的動態載入函式
+            }
+        }
+        function goBack() {
+            if (state.inSearchMode) {
+                state.inSearchMode = false; searchInput.value = '';
+                const targetPath = state.pathStack.length > 0 ? state.pathStack[state.pathStack.length - 1] : '';
+                browse(targetPath); return;
+            }
+            if (state.pathStack.length > 1) { state.pathStack.pop(); const prevPath = state.pathStack[state.pathStack.length - 1]; browse(prevPath); }
+        }
+        function closeImageViewer() {
+            state.gallery.isOpen = false; imageViewer.classList.remove('active'); document.body.style.overflow = 'auto'; currentImage.style.opacity = 0; currentImage.src = "";
+            if (document.fullscreenElement) { document.exitFullscreen(); }
+        }
+        function displayImage(index) {
+            if (!state.gallery.isOpen || state.gallery.isLoading || index < 0 || index >= state.gallery.files.length) return;
+            state.gallery.isLoading = true;
+            currentImage.style.opacity = 0;
+            setTimeout(() => {
+                const type = state.mode === 'MANGA' ? 'pages' : 'video';
+                const imageName = state.gallery.files[index];
+                const imageUrl = `/api/media/${state.mode}/${type}/${state.gallery.baseMediaPath}/${imageName}`;
+                currentImage.src = imageUrl;
+                currentImage.onload = () => { currentImage.style.opacity = 1; state.gallery.currentIndex = index; updateProgressBar(); preloadNextImage(); state.gallery.isLoading = false; };
+                currentImage.onerror = () => { state.gallery.isLoading = false; }
+            }, 200);
+        }
+        function preloadNextImage() {
+            const nextIndex = state.gallery.currentIndex + 1;
+            if (nextIndex < state.gallery.files.length) {
+                const type = state.mode === 'MANGA' ? 'pages' : 'video';
+                const nextImageName = state.gallery.files[nextIndex];
+                const nextImageUrl = `/api/media/${state.mode}/${type}/${state.gallery.baseMediaPath}/${nextImageName}`;
+                new Image().src = nextImageUrl;
+            }
+        }
+        function changeImage(direction) { if (!state.gallery.isOpen) return; const newIndex = state.gallery.currentIndex + direction; displayImage(newIndex); }
+        function buildProgressBar() {
+            progressBarContainer.innerHTML = '';
+            for (let i = 0; i < state.gallery.files.length; i++) { const segment = document.createElement('div'); segment.className = 'progress-segment'; progressBarContainer.appendChild(segment); }
+            progressBarContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (e.target.classList.contains('progress-segment')) {
+                    const segments = Array.from(progressBarContainer.children);
+                    const clickedIndex = segments.indexOf(e.target);
+                    if (clickedIndex !== -1) { displayImage(clickedIndex); }
+                }
+            });
+        }
+        function updateProgressBar() { const segments = progressBarContainer.children; for (let i = 0; i < segments.length; i++) { segments[i].classList.toggle('active', i === state.gallery.currentIndex); } }
+        function toggleFullscreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); } else { if (document.exitFullscreen) { document.exitFullscreen(); } } }
+        function openVideoPlayer(mediaPath) { const videoUrl = `/api/media/JAV/video/${mediaPath}`; videoPlayer.classList.add('active'); document.body.style.overflow = 'hidden'; currentVideo.src = videoUrl; }
+        function closeVideoPlayer() { videoPlayer.classList.remove('active'); document.body.style.overflow = 'auto'; currentVideo.pause(); currentVideo.src = ""; }
+        modeSwitchBtn.addEventListener('click', () => { state.mode = state.mode === 'MANGA' ? 'JAV' : 'MANGA'; modeSwitchBtn.textContent = state.mode === 'MANGA' ? '切换至 JAV 模式' : '切换至 MANGA 模式'; mediaContainer.className = state.mode === 'MANGA' ? 'manga-mode' : 'jav-mode'; state.pathStack = []; state.inSearchMode = false; browse(); });
+        searchBtn.addEventListener('click', () => search(searchInput.value));
+        searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(searchInput.value); });
+        mediaContainer.addEventListener('click', (e) => {
+            const card = e.target.closest('.card');
+            const tag = e.target.closest('.card-tag');
+            if (tag) { e.stopPropagation(); searchInput.value = tag.dataset.tag; search(tag.dataset.tag, 'tag'); return; }
+            const imageWrapper = e.target.closest('.card-image-wrapper');
+            if (imageWrapper) {
+                // 如果是，再找到它所屬的卡片來獲取資料
+                const card = imageWrapper.closest('.card');
+                if (!card) return;
+                const fullPath = card.dataset.path;
+                const mediaPath = card.dataset.mediaPath;
+                const isSpecialDir = card.dataset.isSpecialDir === 'true';
+                const isDir = card.dataset.isDir === 'true';
+                if (isSpecialDir) { openImageViewer(fullPath, mediaPath); }
+                else if (isDir) { browse(fullPath); }
+                else { if (state.mode === 'JAV') { openVideoPlayer(mediaPath); } else { alert(`點擊了檔案：${fullPath}\n此類檔案的點擊行為尚未定義。`); } }
+            }
+        });
+        openFolderBtn.addEventListener('click', async () => { if (!state.inSearchMode && state.pathStack.length > 0) { const currentDir = state.pathStack[state.pathStack.length - 1]; const url = `/api/open_folder?path=${encodeURIComponent(currentDir)}`; try { await fetch(url); } catch (error) { console.error("Failed to open folder:", error); alert("打開資料夾失敗。"); } } else { alert("無法在搜索結果頁面打開目錄。"); } });
+        document.addEventListener('keydown', (e) => { if (state.gallery.isOpen) { if (e.key === 'ArrowRight') changeImage(1); else if (e.key === 'ArrowLeft') changeImage(-1); else if (e.key === 'Escape') closeImageViewer(); } else if (videoPlayer.classList.contains('active')) { if (e.key === 'Escape') closeVideoPlayer(); } });
+        imageContainer.addEventListener('click', () => changeImage(1));
+        imageContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); changeImage(-1); });
+        imageViewerCloseBtn.addEventListener('click', (e) => { e.stopPropagation(); closeImageViewer(); });
+        videoPlayerCloseBtn.addEventListener('click', closeVideoPlayer);
+        fullscreenBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(); });
+        document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) { fullscreenBtn.textContent = ''; } else { fullscreenBtn.textContent = '⛶'; } });
+        document.body.addEventListener('contextmenu', (e) => { if (!imageViewer.classList.contains('active') && !videoPlayer.classList.contains('active')) { e.preventDefault(); goBack(); } });
+        browse();
+    });
+    </script>
+</body>
+</html>
