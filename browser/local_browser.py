@@ -367,6 +367,7 @@ class FileSystemBrowser(ctk.CTk):
             return
         
         self.is_transitioning, self.in_search_mode = True, True
+        self.scrollable_frame._parent_canvas.yview_moveto(0.0)
         if self.stagger_after_id: self.after_cancel(self.stagger_after_id)
         self.stagger_after_id = None
         for widget in self.scrollable_frame.winfo_children(): widget.destroy()

@@ -1,17 +1,19 @@
 .*?(?P<label>[A-Z]+)-(?P<number>\d+).*?,.*?{label}-{number}.*?
 \((.*?)\) \[(.*?)\] (?P<name>.*?) (?P<number>\d+).*?,{name}_{number}
 \((.*?)\) \[(.*?)\] (?P<name>.*?) (?P<digit>\d).*?,{name}_0{digit}.*?
-\((.*?)\) \[(.*?)\] (?P<name>.*?) (\d+).*?, {name}
 \((.*?)\) \[(.*?)\] (?P<name>.*?)(?P<number>\d+).*?,{name}_{number}
 \((.*?)\) \[(.*?)\] (?P<name>.*?)(?P<digit>\d).*?,{name}_0{digit}.*?
-\((.*?)\) \[(.*?)\] (?P<name>.*?)(\d+).*?, {name}
+\[(.*?)\] (?P<name>.*?) 第(?P<number>\d+)巻.*?,{name}_{number}.*?
 (?P<name>.*?) (.*?)(?P<number>\d+).*?,{name}_{number}
+(?P<name>.*?) (.*?)(?P<number>\d+).*?,{name}{number}
 (?P<name>.*?) (.*?)(?P<digit>\d).*?,{name}_0{digit}.*?
 (?P<name>.*?) (.*?)(?P<number>\d+).*?,{name}
+(?P<name>.*),{name}
+(?P<name>.*),{name}_01
+(?P<name>.*),{name}_1
+(?P<name>.*?)_,{name}
 (?P<name>.*?)_,{name}_01
-(?P<name>.*?)_,{name}01
-(?P<name>.*?),{name}_01
-(?P<name>.*?),{name}01
-(?P<name>.*?)_,{name}.*?
+(?P<name>.*?)_,{name}_1
+(?P<name>.*?) .*?,{name}
+(?P<name>.*?) .*?,{name}_1
 (?P<name>.*?) .*?,{name}_01
-(?P<name>.*?) .*?,{name}01
