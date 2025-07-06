@@ -5,22 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文件系统媒体浏览器</title>
     <style>
+        /* CSS 变量定义，用于统一管理颜色、字体等样式 */
         :root { --background-color: #242424; --text-color: #FFFFFF; --button-color: #3B3B3B; --button-hover-color: #888888; --card-background-color: #494141; --card-border-color: #333333; --nav-text-color: #AAAAAA; --placeholder-text-color: #CCCCCC; --font-family: 'Microsoft YaHei', 'Segoe UI', 'WenQuanYi Micro Hei', sans-serif; --label-start-r: 95; --label-start-g: 15; --label-start-b: 64; --label-end-r: 220; --label-end-g: 47; --label-end-b: 2; }
         body { background-color: var(--background-color); color: var(--text-color); font-family: var(--font-family); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         .header-container, .nav-frame { padding: 10px 20px; flex-shrink: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; }
         .header-controls { display: flex; gap: 10px; align-items: center; }
-        .header-right-controls { position: relative; } /* New for maintenance menu */
+        .header-right-controls { position: relative; } /* 为维护菜单提供相对定位的容器 */
         .button, input[type="text"] { background-color: var(--button-color); color: var(--text-color); border: 1px solid var(--card-border-color); border-radius: 6px; padding: 8px 12px; font-size: 14px; cursor: pointer; transition: background-color 0.2s; }
         .button:hover { background-color: var(--button-hover-color); }
         input[type="text"] { width: 300px; }
         input[type="text"]::placeholder { color: var(--placeholder-text-color); }
         .nav-frame { color: var(--nav-text-color); font-size: 12px; padding-top: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .main-content { flex-grow: 1; overflow-y: auto; padding: 0 15px 15px 15px; }
+        /* 卡片容器，使用 grid 布局实现响应式列数 */
         #media-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
         #media-container.jav-mode { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
         .card { background-color: var(--card-background-color); border: 1px solid var(--card-border-color); border-radius: 8px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; }
         .card-image-wrapper { width: 100%; background-color: #1E1E1E; display: flex; justify-content: center; align-items: center; color: var(--nav-text-color); font-size: 16px; text-align: center; padding: 10px; box-sizing: border-box; }
+        /* 不同模式下封面的宽高比 */
         .manga-mode .card-image-wrapper { aspect-ratio: 2 / 3; }
         .jav-mode .card-image-wrapper { aspect-ratio: 800 / 538; }
         .card-image-wrapper img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -29,16 +32,19 @@
         .card-tags { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; }
         .card-tag { font-size: 12px; padding: 2px 6px; border-radius: 5px; color: white; cursor: pointer; transition: transform 0.1s; }
         .card-tag:hover { transform: scale(1.05); }
-        .tag-edit-unit { display: flex; align-items: center; background-color: #555; border-radius: 5px; } /* New for tag edit */
+        /* Tag 编辑模式下的样式 */
+        .tag-edit-unit { display: flex; align-items: center; background-color: #555; border-radius: 5px; }
         .del-tag-btn { font-size: 12px; padding: 1px 5px; margin-left:2px; background-color: #C00000; color: white; border-radius: 0 5px 5px 0; cursor: pointer; }
         .del-tag-btn:hover { background-color: red; }
         .add-tag-btn { font-size: 14px; width: 22px; height: 22px; padding: 0; line-height:22px; text-align:center; background-color: #3B3B3B; cursor:pointer; border-radius:5px; }
         .add-tag-btn:hover{ background-color: #888; }
         .open-folder-btn { position: fixed; bottom: 20px; right: 20px; z-index: 50; }
         #loading-indicator { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px; display: none; z-index: 2000; }
+        /* 维护功能的下拉菜单 */
         #maintenance-menu { display: none; position: absolute; top: 100%; right: 0; background-color: var(--card-background-color); border: 1px solid var(--card-border-color); border-radius: 6px; z-index: 100; padding: 5px; min-width: 120px; }
         #maintenance-menu .button { width: 100%; text-align: left; margin-bottom: 5px; }
         #maintenance-menu .button:last-child { margin-bottom: 0; }
+        /* 图片/视频查看器的遮罩层 */
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; z-index: 1000; }
         .overlay.active { display: flex; }
         .overlay .close-btn { position: absolute; top: 20px; right: 30px; font-size: 40px; color: white; cursor: pointer; z-index: 1010; text-shadow: 0 0 5px black; }
@@ -52,6 +58,7 @@
         #video-player video { max-width: 95vw; max-height: 95vh; outline: none; }
         #fullscreen-btn { position: absolute; top: 25px; left: 30px; font-size: 28px; color: white; cursor: pointer; z-index: 1010; text-shadow: 0 0 5px black; }
         #fullscreen-btn:hover { color: #87cefa; }
+        /* “添加”和“自动导入”按钮的通用样式，确保它们能并排显示 */
         .add-tag-btn, .auto-import-btn { 
         font-size: 14px; width: 22px; height: 22px; padding: 0; line-height:22px; text-align:center; background-color: #3B3B3B; cursor:pointer; border-radius:5px;
         display: inline-block; /* 确保能并排显示 */
@@ -112,8 +119,9 @@
     </template>
     
     <script>
+    // 确保在整个 DOM 加载完成后再执行脚本
     document.addEventListener('DOMContentLoaded', () => {
-        // --- Element selectors (add new maintenance elements) ---
+        // --- 元素选择器：获取所有需要操作的 HTML 元素的引用 ---
         const modeSwitchBtn = document.getElementById('mode-switch-btn');
         const searchInput = document.getElementById('search-input');
         const searchBtn = document.getElementById('search-btn');
@@ -122,45 +130,52 @@
         const cardTemplate = document.getElementById('card-template');
         const openFolderBtn = document.getElementById('open-folder-btn');
         const loadingIndicator = document.getElementById('loading-indicator');
-        // Image viewer
+        // 图片查看器相关元素
         const imageViewer = document.getElementById('image-viewer');
         const imageContainer = imageViewer.querySelector('.image-container');
         const progressBarContainer = document.getElementById('progress-bar-container');
         const fullscreenBtn = document.getElementById('fullscreen-btn');
         const currentImage = document.getElementById('current-image');
         const imageViewerCloseBtn = imageViewer.querySelector('.close-btn');
-        // Video player
+        // 视频播放器相关元素
         const videoPlayer = document.getElementById('video-player');
         const currentVideo = document.getElementById('current-video');
         const videoPlayerCloseBtn = videoPlayer.querySelector('.close-btn');
-        // Maintenance
+        // 维护功能相关元素
         const maintenanceBtn = document.getElementById('maintenance-btn');
         const maintenanceMenu = document.getElementById('maintenance-menu');
         const generateCoversBtn = document.getElementById('generate-covers-btn');
         const editTagsBtn = document.getElementById('edit-tags-btn');
 
-        // --- State object (add maintenance related state) ---
+        // --- 状态对象：集中管理应用的所有动态状态 ---
         let state = {
-            mode: 'MANGA',
-            currentPath: '',
-            pathStack: [],
-            inSearchMode: false,
-            isTagEditMode: false,
-            tagsData: {},
-            tempTagsData: {}, // For temporary edits
-            gallery: {
-                isOpen: false, baseMediaPath: '', files: [], currentIndex: 0, isLoading: false,
+            mode: 'MANGA', // 当前模式: 'MANGA' 或 'JAV'
+            currentPath: '', // 当前浏览的路径
+            pathStack: [], // 路径历史栈，用于实现返回功能
+            inSearchMode: false, // 是否处于搜索结果模式
+            isTagEditMode: false, // 是否处于Tag编辑模式
+            tagsData: {}, // 从服务器加载的原始标签数据
+            tempTagsData: {}, // 在编辑模式下临时存放修改的标签数据
+            gallery: { // 图片查看器（画廊）的状态
+                isOpen: false,
+                baseMediaPath: '', // 媒体的基础路径，用于构建图片URL
+                files: [], // 当前画廊的所有图片文件名
+                currentIndex: 0, // 当前显示的图片索引
+                isLoading: false, // 是否正在加载图片
             }
         };
-        let viewerState = { rotationAngle: 0 };
-        let wheelDebounceTimeout = null;
+        let activeImports = {}; // 用于跟踪正在进行的自动导入操作
+        let viewerState = { rotationAngle: 0 }; // 独立的状态对象，用于管理图片查看器中的旋转角度
+        let wheelDebounceTimeout = null; // 用于滚轮事件的防抖定时器
 
-        // --- Core Functions ---
+        // --- 核心功能函数 ---
 
         function applyImageViewerTransforms() {
+            // 应用图片查看器中的变换（旋转和缩放）
             if (!state.gallery.isOpen) return;
             const { rotationAngle } = viewerState;
             let scale = 1;
+            // 如果图片旋转了90或270度，需要重新计算缩放比例以适应容器
             if (rotationAngle === 90 || rotationAngle === 270) {
                 currentImage.style.maxWidth = 'none';
                 currentImage.style.maxHeight = 'none';
@@ -169,7 +184,7 @@
                 if (img.naturalWidth > 0 && img.naturalHeight > 0) {
                     const scaleX = container.clientWidth / img.naturalHeight;
                     const scaleY = container.clientHeight / img.naturalWidth;
-                    scale = Math.min(scaleX, scaleY);
+                    scale = Math.min(scaleX, scaleY); // 取较小的缩放比例以保证完整显示
                 }
             } else {
                 currentImage.style.maxWidth = '100%';
@@ -180,12 +195,15 @@
         }
         
         function showLoading(isLoading, clearContent = true) {
+            // 控制加载指示器的显示和隐藏
             loadingIndicator.style.display = isLoading ? 'block' : 'none';
+            // 加载时根据需要清空主内容区域
             if (isLoading && clearContent) { mediaContainer.innerHTML = ''; }
         }
 
         async function fetchData(url, options = {}) {
-            const clear = options.clearContentOnLoad !== false; // default to true
+            // 封装的 fetch 函数，统一处理加载状态和错误
+            const clear = options.clearContentOnLoad !== false; // 默认加载时清空内容
             showLoading(true, clear);
             try {
                 const response = await fetch(url, options);
@@ -201,50 +219,57 @@
         }
         
         async function browse(path = '') {
+            // 浏览目录功能
+            // 如果在编辑模式下，先确认是否要放弃更改
             if(state.isTagEditMode && !await confirmExitTagEditMode()) return;
-            state.inSearchMode = false; searchInput.value = '';
+            state.inSearchMode = false; searchInput.value = ''; // 退出搜索模式
             const url = path ? `/api/browse?mode=${state.mode}&path=${encodeURIComponent(path)}` : `/api/browse?mode=${state.mode}`;
             const data = await fetchData(url, { clearContentOnLoad: true });
             if (data && data.items) {
                 state.currentPath = data.current_path;
+                // 维护路径栈，用于返回上一级
                 if (!state.pathStack.length || state.pathStack[state.pathStack.length - 1] !== data.current_path) { state.pathStack.push(data.current_path); }
                 pathLabel.textContent = `模式: ${state.mode} | ${state.currentPath}`;
-                mediaContainer.innerHTML = '';
-                renderCardsStaggered(data.items);
+                mediaContainer.innerHTML = ''; // 确保容器清空
+                renderCardsStaggered(data.items); // 渲染卡片
             }
         }
         
         async function search(query, type = 'keyword') {
+            // 搜索功能
             if (!query) return;
             if(state.isTagEditMode && !await confirmExitTagEditMode()) return;
-            state.inSearchMode = true;
+            state.inSearchMode = true; // 进入搜索模式
             const url = `/api/search?mode=${state.mode}&q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}`;
             const data = await fetchData(url, { clearContentOnLoad: true });
             if (data && data.items) {
                 const searchLabel = type === 'tag' ? `標籤搜索: "${query}"` : `關鍵詞搜索: "${query}"`;
-                pathLabel.textContent = searchLabel;
+                pathLabel.textContent = searchLabel; // 更新路径显示为搜索信息
                 mediaContainer.innerHTML = '';
                 renderCardsStaggered(data.items);
             }
         }
         
-        // --- Card Rendering and Tag UI ---
+        // --- 卡片渲染和 Tag UI ---
 
         function renderCardsStaggered(items, index = 0) {
+            // 错开渲染卡片，以获得更好的视觉效果，避免一次性渲染大量卡片导致卡顿
             if (index >= items.length) return;
             const item = items[index];
-            const cardClone = cardTemplate.content.cloneNode(true);
+            const cardClone = cardTemplate.content.cloneNode(true); // 使用 template 元素克隆新卡片
             const cardEl = cardClone.querySelector('.card');
+            // 将项目数据存储在卡片元素的 data-* 属性中
             cardEl.dataset.path = item.full_path;
             cardEl.dataset.mediaPath = item.media_path;
             cardEl.dataset.isDir = item.is_dir;
             cardEl.dataset.isSpecialDir = item.is_special_dir;
-            cardEl.dataset.nameNoExt = item.name_no_ext; // Store for tag editing
+            cardEl.dataset.nameNoExt = item.name_no_ext; // 存储不带扩展名的文件名，作为标签的键
 
             const imgEl = cardClone.querySelector('img');
             const placeholderEl = cardClone.querySelector('.placeholder-text');
             const filenameEl = cardClone.querySelector('.card-filename');
             
+            // 如果有封面，则显示封面；否则显示文件名作为占位符
             if (item.cover_filename) {
                 imgEl.src = `/api/media/${state.mode}/cover/${encodeURIComponent(item.cover_filename)}`;
                 imgEl.style.display = 'block'; placeholderEl.style.display = 'none';
@@ -255,19 +280,23 @@
             const displayName = item.is_special_dir ? item.name_no_ext : item.name;
             filenameEl.textContent = `${icon} ${displayName}`;
             
-            // Initial tag display
+            // 初始化卡片的 Tag 显示
             const tagsEl = cardClone.querySelector('.card-tags');
             updateCardTagsDisplay(tagsEl, item.name_no_ext);
 
             mediaContainer.appendChild(cardClone);
+            // 使用 setTimeout 递归调用，实现错开渲染
             setTimeout(() => { renderCardsStaggered(items, index + 1); }, 15);
         }
 
         function updateCardTagsDisplay(tagsContainer, itemKey) {
+            // 根据当前是否为编辑模式，更新单个卡片的 Tag 显示区域
             tagsContainer.innerHTML = '';
+            // 根据模式选择使用临时数据还是原始数据
             const tags = state.isTagEditMode ? state.tempTagsData[itemKey] || [] : state.tagsData[itemKey] || [];
             
             if (state.isTagEditMode) {
+                // 编辑模式下的 UI：显示 Tag 和删除按钮
                 tags.forEach(tag => {
                     const unit = document.createElement('div');
                     unit.className = 'tag-edit-unit';
@@ -284,6 +313,7 @@
                     unit.appendChild(delBtn);
                     tagsContainer.appendChild(unit);
                 });
+                // 添加 "新增Tag" 按钮
                 const addBtn = document.createElement('span');
                 addBtn.className = 'add-tag-btn';
                 addBtn.textContent = '+';
@@ -295,23 +325,25 @@
                 importBtn.textContent = '🔍';
                 importBtn.title = '从DMM自动导入Tag';
                 importBtn.onclick = (e) => {
-                    e.stopPropagation();
+                    e.stopPropagation(); // 阻止事件冒泡到卡片点击
                     autoImportTags(itemKey, importBtn);
                 };
                 tagsContainer.appendChild(importBtn);
                 // --- 新增代码结束 ---
             } else {
+                // 正常模式下的 UI：显示可点击的、有颜色的 Tag
                 tags.forEach((tag, tagIndex) => {
                     const tagEl = document.createElement('span');
                     tagEl.className = 'card-tag';
                     tagEl.textContent = tag;
                     tagEl.dataset.tag = tag;
+                    // 根据 Tag 的顺序计算渐变色，使其有区分度
                     const ratio = tags.length > 1 ? tagIndex / (tags.length - 1) : 0;
                     const r = Math.round(95 * (1 - ratio) + 220 * ratio);
                     const g = Math.round(15 * (1 - ratio) + 47 * ratio);
                     const b = Math.round(64 * (1 - ratio) + 2 * ratio);
                     tagEl.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-                    // Tag search functionality bound here
+                    // 点击 Tag 可以直接搜索该 Tag
                     tagEl.onclick = (e) => { e.stopPropagation(); searchInput.value = tag; search(tag, 'tag'); };
                     tagsContainer.appendChild(tagEl);
                 });
@@ -319,6 +351,7 @@
         }
 
         function refreshAllCardsTags() {
+            // 刷新当前页面上所有卡片的 Tag 显示，主要用于切换编辑模式或保存后
             document.querySelectorAll('.card').forEach(card => {
                 const itemKey = card.dataset.nameNoExt;
                 const tagsContainer = card.querySelector('.card-tags');
@@ -328,27 +361,31 @@
             });
         }
         
-        // --- Maintenance Functions ---
+        // --- 维护功能函数 ---
 
         async function enterTagEditMode() {
+            // 进入 Tag 编辑模式
             if(state.isTagEditMode) return;
             state.isTagEditMode = true;
-            state.tempTagsData = JSON.parse(JSON.stringify(state.tagsData)); // Deep copy
+            // 创建一个标签数据的深拷贝副本，用于临时编辑，避免直接修改原始数据
+            state.tempTagsData = JSON.parse(JSON.stringify(state.tagsData));
+            // 更新按钮的文本和样式，以提示当前状态
             editTagsBtn.textContent = "保存Tag";
             editTagsBtn.style.backgroundColor = 'red';
             maintenanceBtn.textContent = '保存中...';
             maintenanceBtn.style.backgroundColor = 'red';
-            refreshAllCardsTags();
-            maintenanceMenu.style.display = 'none';
+            refreshAllCardsTags(); // 刷新所有卡片以显示编辑UI
+            maintenanceMenu.style.display = 'none'; // 关闭下拉菜单
         }
 
         async function saveAndExitTagEditMode() {
+            // 保存 Tag 修改并退出编辑模式
             if(!state.isTagEditMode) return;
             const options = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(state.tempTagsData),
-                clearContentOnLoad: false,
+                body: JSON.stringify(state.tempTagsData), // 将临时数据发送到服务器
+                clearContentOnLoad: false, // 保存时不需要清空主界面
             };
             showLoading(true, false);
             const result = await fetch('/api/tags', options).then(res => res.json()).catch(e => ({status: 'error', message: e.toString()}));
@@ -356,22 +393,26 @@
 
             if (result.status === 'success') {
                 alert('Tag 已成功保存！');
-                state.tagsData = JSON.parse(JSON.stringify(state.tempTagsData)); // Update main tags data
+                // 保存成功后，用临时数据更新主数据
+                state.tagsData = JSON.parse(JSON.stringify(state.tempTagsData));
                 state.isTagEditMode = false;
-                state.tempTagsData = {};
+                state.tempTagsData = {}; // 清空临时数据
+                // 恢复按钮的原始状态
                 editTagsBtn.textContent = "编辑Tag";
                 editTagsBtn.style.backgroundColor = '';
                 maintenanceBtn.textContent = '维护';
                 maintenanceBtn.style.backgroundColor = '';
-                refreshAllCardsTags();
+                refreshAllCardsTags(); // 刷新所有卡片以显示正常UI
             } else {
                 alert(`Tag 保存失敗: ${result.message}`);
             }
         }
 
         async function confirmExitTagEditMode() {
+            // 在切换页面或模式时，检查是否有未保存的 Tag 修改
             const hasChanges = JSON.stringify(state.tagsData) !== JSON.stringify(state.tempTagsData);
             if (!hasChanges) {
+                // 如果没有变化，则直接退出编辑模式
                 state.isTagEditMode = false;
                 state.tempTagsData = {};
                 editTagsBtn.textContent = "编辑Tag";
@@ -381,6 +422,7 @@
                 refreshAllCardsTags();
                 return true;
             }
+            // 如果有变化，弹窗确认是否放弃修改
             if (confirm("您有未保存的Tag修改，確定要放棄嗎？")) {
                  state.isTagEditMode = false;
                  state.tempTagsData = {};
@@ -389,12 +431,13 @@
                  maintenanceBtn.textContent = '维护';
                  maintenanceBtn.style.backgroundColor = '';
                  refreshAllCardsTags();
-                 return true;
+                 return true; // 用户确认放弃
             }
-            return false;
+            return false; // 用户取消放弃
         }
 
         function addTag(itemKey) {
+            // 为指定的项目添加新 Tag
             const newTag = prompt(`為 "${itemKey}" 添加新Tag:`);
             if (newTag && newTag.trim()) {
                 const tag = newTag.trim();
@@ -403,7 +446,7 @@
                 }
                 if (!state.tempTagsData[itemKey].includes(tag)) {
                     state.tempTagsData[itemKey].push(tag);
-                    refreshAllCardsTags();
+                    refreshAllCardsTags(); // 实时刷新UI
                 } else {
                     alert(`Tag "${tag}" 已经存在。`);
                 }
@@ -411,28 +454,45 @@
         }
 
         function deleteTag(itemKey, tagToDelete) {
+            // 删除指定的 Tag
             if (state.tempTagsData[itemKey]) {
                 state.tempTagsData[itemKey] = state.tempTagsData[itemKey].filter(t => t !== tagToDelete);
                 if (state.tempTagsData[itemKey].length === 0) {
-                    delete state.tempTagsData[itemKey];
+                    delete state.tempTagsData[itemKey]; // 如果一个项目的所有 Tag 都被删除，则移除该键
                 }
-                refreshAllCardsTags();
+                refreshAllCardsTags(); // 实时刷新UI
             }
         }
 
         async function autoImportTags(itemKey, buttonEl) {
-            if (buttonEl.disabled) return; // 防止重复点击
+            if (activeImports[itemKey]) {
+                console.log(`Cancelling import for ${itemKey}`);
+                activeImports[itemKey].abort(); // 取消当前正在进行的导入请求
+                return;
+            }
+            if (Object.keys(activeImports).length > 0 && !activeImports[itemKey]) {
+                alert('其他的导入正在进行，请先完成当前的Tag导入操作。');
+                return;
+            }
 
             const originalText = buttonEl.textContent;
-            buttonEl.disabled = true;
+            buttonEl.disabled = true; // 禁用按钮，显示加载状态
             buttonEl.textContent = '…';
 
+            // 创建一个新的 AbortController 实例，用于取消请求
+            const controller = new AbortController();
+            activeImports[itemKey] = controller;
+
             try {
+                // 向后端的 /api/auto_import_tags 发送请求
                 const response = await fetch('/api/auto_import_tags', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ item_name: itemKey })
+                    body: JSON.stringify({ item_name: itemKey }),
+                    signal: controller.signal
                 });
+                
+                delete activeImports[itemKey];
 
                 const result = await response.json();
 
@@ -442,6 +502,7 @@
                     }
                     const existingTags = new Set(state.tempTagsData[itemKey]);
                     let newTagsAdded = 0;
+                    // 将获取到的新 Tag 添加到临时数据中（去重）
                     result.tags.forEach(tag => {
                         if (!existingTags.has(tag)) {
                             state.tempTagsData[itemKey].push(tag);
@@ -456,91 +517,119 @@
                 }
 
             } catch (error) {
-                console.error("Auto-import fetch error:", error);
-                alert("自动导入请求失败，请检查网络连接和服务器控制台日志。");
+                if (error.name === 'AbortError') {
+                    console.log(`Import for ${itemKey} was successfully cancelled by the user.`);
+                    alert(`项目 "${itemKey}" 的导入操作已取消。`);
+                } else {
+                    console.error("Auto-import fetch error:", error);
+                    alert("自动导入请求失败，请检查网络连接和服务器控制台日志。");
+                }
             } finally {
+                // 成功、失败或取消后，恢复按钮状态
+                delete activeImports[itemKey];
                 buttonEl.disabled = false;
                 buttonEl.textContent = originalText;
+                refreshAllCardsTags();
             }
         }
 
-        // --- Image/Video Viewer & Navigation ---
+        // --- 图片/视频查看器和导航 ---
 
         function openImageViewer(fullPath, mediaPath) {
+            // 打开图片查看器
             showLoading(true, false);
             const url = `/api/gallery?mode=${state.mode}&path=${encodeURIComponent(fullPath)}`;
             fetch(url).then(res => res.json()).then(files => {
                 showLoading(false, false);
                 if (files && !files.error && files.length > 0) {
+                    // 更新画廊状态
                     state.gallery = { ...state.gallery, isOpen: true, baseMediaPath: mediaPath, files: files, currentIndex: 0, isLoading: false };
-                    imageViewer.classList.add('active');
-                    document.body.style.overflow = 'hidden';
-                    buildProgressBar();
-                    displayImage(0);
+                    imageViewer.classList.add('active'); // 显示遮罩层
+                    document.body.style.overflow = 'hidden'; // 禁止背景滚动
+                    buildProgressBar(); // 构建右侧进度条
+                    displayImage(0); // 显示第一张图片
                 } else { alert('這個圖片集是空的或載入失敗！'); }
             }).catch(err => { showLoading(false, false); alert('載入圖片集失敗：' + err); });
         }
 
         function closeImageViewer() {
+            // 关闭图片查看器
             state.gallery.isOpen = false;
             imageViewer.classList.remove('active');
-            document.body.style.overflow = 'auto';
-            currentImage.src = "";
+            document.body.style.overflow = 'auto'; // 恢复背景滚动
+            currentImage.src = ""; // 清空图片，释放内存
             currentImage.style.opacity = 0; currentImage.style.transform = 'none';
             currentImage.style.maxWidth = '100%'; currentImage.style.maxHeight = '100%';
-            viewerState.rotationAngle = 0;
-            if (document.fullscreenElement) { document.exitFullscreen(); }
+            viewerState.rotationAngle = 0; // 重置旋转角度
+            if (document.fullscreenElement) { document.exitFullscreen(); } // 如果是全屏状态则退出
         }
         
         function displayImage(index) {
+            // 在图片查看器中显示指定索引的图片
             if (!state.gallery.isOpen || state.gallery.isLoading || index < 0 || index >= state.gallery.files.length) return;
             state.gallery.isLoading = true;
-            currentImage.style.opacity = 0;
-            applyImageViewerTransforms();
-            setTimeout(() => {
-                const type = state.mode === 'MANGA' ? 'pages' : 'video'; // 'video' part is fallback, not used
+            currentImage.style.opacity = 0; // 先隐藏当前图片
+            applyImageViewerTransforms(); // 应用变换
+            setTimeout(() => { // 使用 setTimeout 提供一个短暂的过渡效果
+                const type = 'pages'; // Manga模式下是'pages'
                 const imageName = state.gallery.files[index];
+                // 构建图片URL
                 const imageUrl = `/api/media/${state.mode}/${type}/${state.gallery.baseMediaPath}/${imageName}`;
                 currentImage.src = imageUrl;
-                currentImage.onload = () => {
-                    currentImage.style.opacity = 1;
-                    state.gallery.currentIndex = index;
-                    updateProgressBar();
-                    preloadNextImage();
+                currentImage.onload = () => { // 图片加载成功后
+                    currentImage.style.opacity = 1; // 淡入显示新图片
+                    state.gallery.currentIndex = index; // 更新当前索引
+                    updateProgressBar(); // 更新进度条高亮
+                    preloadNextImage(); // 预加载下一张图片
                     state.gallery.isLoading = false;
-                    applyImageViewerTransforms(); 
+                    applyImageViewerTransforms(); // 再次应用变换以确保尺寸正确
                 };
                 currentImage.onerror = () => { state.gallery.isLoading = false; }
             }, 200);
         }
 
         async function goBack() {
+            // 返回上一级或退出搜索
             if (state.isTagEditMode && !await confirmExitTagEditMode()) return;
-            if (state.inSearchMode) {
+            if (state.inSearchMode) { // 如果在搜索模式下，返回操作是退出搜索，回到搜索前的目录
                 state.inSearchMode = false; searchInput.value = '';
                 const targetPath = state.pathStack.length > 0 ? state.pathStack[state.pathStack.length - 1] : '';
                 browse(targetPath); return;
             }
-            if (state.pathStack.length > 1) { state.pathStack.pop(); const prevPath = state.pathStack[state.pathStack.length - 1]; browse(prevPath); }
+            if (state.pathStack.length > 1) { // 如果在浏览模式下，从路径栈中弹出上一级路径并浏览
+                state.pathStack.pop(); 
+                const prevPath = state.pathStack[state.pathStack.length - 1]; 
+                browse(prevPath); 
+            }
         }
         
         function preloadNextImage() {
+            // 预加载下一张图片以提升用户体验
             const nextIndex = state.gallery.currentIndex + 1;
             if (nextIndex < state.gallery.files.length) {
-                const type = state.mode === 'MANGA' ? 'pages' : 'video';
+                const type = 'pages';
                 const nextImageName = state.gallery.files[nextIndex];
                 const nextImageUrl = `/api/media/${state.mode}/${type}/${state.gallery.baseMediaPath}/${nextImageName}`;
-                new Image().src = nextImageUrl;
+                new Image().src = nextImageUrl; // 创建一个新的Image对象来加载图片，会缓存到浏览器
             }
         }
         
         function changeImage(direction) {
-            if (!state.gallery.isOpen) return; const newIndex = state.gallery.currentIndex + direction; displayImage(newIndex);
+            // 切换图片（上一张/下一张）
+            if (!state.gallery.isOpen) return; 
+            const newIndex = state.gallery.currentIndex + direction; 
+            displayImage(newIndex);
         }
         
         function buildProgressBar() {
+            // 构建图片查看器右侧的进度条
             progressBarContainer.innerHTML = '';
-            for (let i = 0; i < state.gallery.files.length; i++) { const segment = document.createElement('div'); segment.className = 'progress-segment'; progressBarContainer.appendChild(segment); }
+            for (let i = 0; i < state.gallery.files.length; i++) { 
+                const segment = document.createElement('div'); 
+                segment.className = 'progress-segment'; 
+                progressBarContainer.appendChild(segment); 
+            }
+            // 为进度条添加点击事件，允许直接跳转到对应图片
             progressBarContainer.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (e.target.classList.contains('progress-segment')) {
@@ -552,52 +641,72 @@
         }
         
         function updateProgressBar() {
-            const segments = progressBarContainer.children; for (let i = 0; i < segments.length; i++) { segments[i].classList.toggle('active', i === state.gallery.currentIndex); }
+            // 更新进度条，高亮显示当前图片对应的段
+            const segments = progressBarContainer.children; 
+            for (let i = 0; i < segments.length; i++) { 
+                segments[i].classList.toggle('active', i === state.gallery.currentIndex); 
+            }
         }
         
         function toggleFullscreen() {
-            if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); } else { if (document.exitFullscreen) { document.exitFullscreen(); } }
+            // 切换浏览器全屏
+            if (!document.fullscreenElement) { 
+                document.documentElement.requestFullscreen(); 
+            } else { 
+                if (document.exitFullscreen) { document.exitFullscreen(); } 
+            }
         }
         
         function openVideoPlayer(mediaPath) {
-            const videoUrl = `/api/media/JAV/video/${mediaPath}`; videoPlayer.classList.add('active'); document.body.style.overflow = 'hidden'; currentVideo.src = videoUrl;
+            // 打开视频播放器
+            const videoUrl = `/api/media/JAV/video/${mediaPath}`; 
+            videoPlayer.classList.add('active'); 
+            document.body.style.overflow = 'hidden'; 
+            currentVideo.src = videoUrl;
         }
         
         function closeVideoPlayer() {
-            videoPlayer.classList.remove('active'); document.body.style.overflow = 'auto'; currentVideo.pause(); currentVideo.src = "";
+            // 关闭视频播放器
+            videoPlayer.classList.remove('active'); 
+            document.body.style.overflow = 'auto'; 
+            currentVideo.pause(); 
+            currentVideo.src = "";
         }
 
-        // --- Event Listeners ---
+        // --- 事件监听器 ---
         
         modeSwitchBtn.addEventListener('click', async () => { 
+            // 模式切换按钮
             if (state.isTagEditMode && !await confirmExitTagEditMode()) return;
             state.mode = state.mode === 'MANGA' ? 'JAV' : 'MANGA';
             modeSwitchBtn.textContent = state.mode === 'MANGA' ? '切换至 JAV 模式' : '切换至 MANGA 模式';
             mediaContainer.className = state.mode === 'MANGA' ? 'manga-mode' : 'jav-mode';
-            state.pathStack = [];
+            state.pathStack = []; // 切换模式后重置路径栈
             state.inSearchMode = false;
-            browse();
+            browse(); // 重新从根目录开始浏览
         });
 
         searchBtn.addEventListener('click', () => search(searchInput.value));
         searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(searchInput.value); });
         
         mediaContainer.addEventListener('click', (e) => {
-            if (state.isTagEditMode) return; // Disable card clicks in edit mode
+            // 卡片容器的点击事件代理
+            if (state.isTagEditMode) return; // 编辑模式下禁用卡片点击
             const card = e.target.closest('.card');
             if(!card) return;
+            // 如果点击的是图片区域，或者不是特殊目录，则触发打开行为
             const imageWrapper = e.target.closest('.card-image-wrapper');
             if (imageWrapper || !card.dataset.isSpecialDir) {
                 const fullPath = card.dataset.path;
                 const mediaPath = card.dataset.mediaPath;
                 const isSpecialDir = card.dataset.isSpecialDir === 'true';
                 const isDir = card.dataset.isDir === 'true';
-                if (isSpecialDir) {
+                if (isSpecialDir) { // 点击特殊目录（如 a_），打开图片查看器
                     openImageViewer(fullPath, mediaPath);
-                } else if (isDir) {
+                } else if (isDir) { // 点击普通目录，进入该目录
                     browse(fullPath);
-                } else {
-                    if (state.mode === 'JAV') {
+                } else { // 点击文件
+                    if (state.mode === 'JAV') { // JAV模式下点击文件播放视频
                         openVideoPlayer(mediaPath);
                     } else {
                         alert(`點擊了檔案：${fullPath}\n此類檔案的點擊行為尚未定義。`);
@@ -607,6 +716,7 @@
         });
 
         openFolderBtn.addEventListener('click', async () => {
+            // "打开所在目录" 按钮
             if (!state.inSearchMode && state.pathStack.length > 0) {
                 const currentDir = state.pathStack[state.pathStack.length - 1];
                 const url = `/api/open_folder?path=${encodeURIComponent(currentDir)}`;
@@ -617,65 +727,74 @@
         });
 
         document.addEventListener('keydown', (e) => {
-            if (state.gallery.isOpen) {
-                if (e.key === 'ArrowRight') changeImage(1);
-                else if (e.key === 'ArrowLeft') changeImage(-1);
-                else if (e.key === 'Escape') closeImageViewer();
-            } else if (videoPlayer.classList.contains('active')) {
-                if (e.key === 'Escape') closeVideoPlayer();
+            // 全局键盘事件
+            if (state.gallery.isOpen) { // 图片查看器打开时
+                if (e.key === 'ArrowRight') changeImage(1); // 右箭头 -> 下一张
+                else if (e.key === 'ArrowLeft') changeImage(-1); // 左箭头 -> 上一张
+                else if (e.key === 'Escape') closeImageViewer(); // Esc -> 关闭
+            } else if (videoPlayer.classList.contains('active')) { // 视频播放器打开时
+                if (e.key === 'Escape') closeVideoPlayer(); // Esc -> 关闭
             }
         });
-
-        imageContainer.addEventListener('click', () => changeImage(1));
-        imageContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); changeImage(-1); });
+        
+        // 图片查看器内的交互事件
+        imageContainer.addEventListener('click', () => changeImage(1)); // 左键点击 -> 下一张
+        imageContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); changeImage(-1); }); // 右键点击 -> 上一张
         imageViewerCloseBtn.addEventListener('click', (e) => { e.stopPropagation(); closeImageViewer(); });
         videoPlayerCloseBtn.addEventListener('click', closeVideoPlayer);
         fullscreenBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(); });
         document.addEventListener('fullscreenchange', () => { fullscreenBtn.textContent = document.fullscreenElement ? '' : '⛶'; });
+        
         document.body.addEventListener('contextmenu', (e) => {
-            // Prevent right-click menu if it's over a card or viewer
-            if (!imageViewer.classList.contains('active') && !videoPlayer.classList.contains('active') && !e.target.closest('.card')) {
+            // 在页面空白处右键单击 -> 返回上一级
+            // 阻止在卡片或查看器上触发此行为
+            if (!imageViewer.classList.contains('active') && !videoPlayer.classList.contains('active')) {
                 e.preventDefault();
                 goBack();
             }
         });
 
         imageViewer.addEventListener('wheel', (e) => {
+            // 在图片查看器中滚动鼠标滚轮 -> 旋转图片
             e.preventDefault(); e.stopPropagation();
             clearTimeout(wheelDebounceTimeout);
+            // 使用防抖，避免旋转过快
             wheelDebounceTimeout = setTimeout(() => {
-                currentImage.style.transition = 'none';
+                currentImage.style.transition = 'none'; // 旋转时暂时取消过渡动画
                 viewerState.rotationAngle = (viewerState.rotationAngle + (e.deltaY > 0 ? 90 : -90) + 360) % 360;
                 applyImageViewerTransforms();
-                setTimeout(() => { currentImage.style.transition = ''; }, 50);
+                setTimeout(() => { currentImage.style.transition = ''; }, 50); // 稍后恢复过渡动画
             }, 100);
         });
 
-        // --- Maintenance Menu Listeners ---
+        // --- 维护菜单事件监听器 ---
         maintenanceBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (state.isTagEditMode) {
+            if (state.isTagEditMode) { // 如果在编辑模式，此按钮功能变为 "保存"
                 saveAndExitTagEditMode();
-            } else {
+            } else { // 正常模式下，切换下拉菜单的显示
                 maintenanceMenu.style.display = maintenanceMenu.style.display === 'block' ? 'none' : 'block';
             }
         });
 
         document.addEventListener('click', (e) => {
+            // 点击页面其他地方时，关闭维护菜单
             if (!maintenanceBtn.contains(e.target) && !maintenanceMenu.contains(e.target)) {
                 maintenanceMenu.style.display = 'none';
             }
         });
 
         editTagsBtn.addEventListener('click', () => {
-             if (state.isTagEditMode) {
+            // "编辑Tag" 按钮
+             if (state.isTagEditMode) { // 如果已在编辑模式，则保存并退出
                 saveAndExitTagEditMode();
-             } else {
+             } else { // 否则，进入编辑模式
                 enterTagEditMode();
              }
         });
         
         generateCoversBtn.addEventListener('click', async () => {
+            // "生成封面" 按钮
             maintenanceMenu.style.display = 'none';
             if (state.inSearchMode) {
                 alert("請在正常的資料夾瀏覽模式下使用此功能，而不是在搜索結果頁面。");
@@ -697,11 +816,12 @@
             }
         });
 
-        // --- Initial Load ---
+        // --- 初始加载 ---
         async function initialize() {
-            // Fetch initial tags
+            // 页面首次加载时执行的初始化函数
+            // 首先获取所有标签数据
             state.tagsData = await fetch('/api/tags').then(res => res.json()).catch(() => ({}));
-            // Start Browse
+            // 然后开始从根目录浏览
             browse();
         }
 
