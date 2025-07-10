@@ -38,9 +38,9 @@ TTS_TEMPLATES = {
         # 合成参数
         "top_k": 5, "top_p": 1, "temperature": 1, "text_split_method": "cut5",
         "batch_size": 1, "batch_threshold": 0.75, "split_bucket": True,
-        "speed_factor": 1.15, "fragment_interval": 0.3, "seed": 7777777,
+        "speed_factor": 1.15, "fragment_interval": 0.3, "seed": 333,
         "parallel_infer": True, "media_type": "wav", "streaming_mode": False,
-        "repetition_penalty": 1.35, "sample_steps": 32, "super_sampling": False,
+        "repetition_penalty": 1.35, "sample_steps": 24, "super_sampling": False,
     },
     "翻": {
         # 在初始状态下，参数与“普”相同。请在此处修改参数以形成不同声线。
