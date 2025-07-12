@@ -3,6 +3,7 @@
   + 图片来自哪部动画：https://trace.moe/
   + 查Latex符号：https://detexify.kirelabs.org/
   + 查Unicode：https://shapecatcher.com/
+  + 查书籍：https://search.worldcat.org/
 + 文件处理：
   + 文件转换：https://www.aconvert.com/
   + 文件转换：https://pandoc.org/ `pandoc article.tex --bibliography=reference.bib --citeproc -o output.docx`
@@ -13,7 +14,9 @@
     + 截取：`ffmpeg -ss 0:30:00 -i "1.mp4" -t 600 -codec copy -y "2.mp4"`
     + 截取+编码：`ffmpeg -ss 00:01:28 -i "1.webm" -t 20 -c:v libx264 -crf 20 -preset veryfast -c:a aac -b:a 128k -y "2.mp4"`
     + 加帧（最小蠕动感）：`ffmpeg -i "video.mp4" -vf "minterpolate=fps=60:mi_mode=blend:scd=1" "video60fps.mp4"`
-    + 加字幕（必须编码）：`ffmpeg -i "1.mp4" -vf "ass=aaa.ass" -c:v libx264 -crf 20 -preset medium -c:a aac -b:a 128k "2.mp4"`
+    + 加字幕（必须编码）：`ffmpeg -i "1.mp4" -vf "ass=aaa.ass" -c:a aac -b:a 128k "2.mp4"`
++ 图片处理：
+  + 放大：Upscayl
 + 下载：
   + yt-dlp: 适用于youtube,twitch,bilibili，不适用于twitter
     + `yt-dlp -F URL`
@@ -21,8 +24,17 @@
     + `yt-dlp "https://www.youtube.com/watch?v=xxx"`
     + `yt-dlp "https://www.youtube.com/watch?v=xxx"  -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4"`
     + `yt-dlp "https://www.twitch.tv/videos/xxxx" -o "E:\xxxx\xxxx.mp4" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" --download-sections "*00:13:00-07:54:10"`
-  + ~~盗版种子站：https://nyaa.si~~  ~~https://sukebei.nyaa.si~~
-  + ~~压制组：https://vcb-s.com/ https://nyaa.si/user/VCB-Studio~~
+    + pip install getjump  https://pypi.org/project/getjump/
+      + `jget https://shonenjumpplus.com/episode/xxxx` 适用于comic-action.com comic-days.com comic-earthstar.com comic-gardo.com comic-ogyaaa.com comic-seasons.com comic-trail.com comic-zenon.com comicborder.com feelweb.jp kuragebunch.com magcomi.com ourfeel.jp pocket.shonenmagazine.com shonenjumpplus.com www.sunday-webry.com tonarinoyj.jp viewer.heros-web.com
+    + pip install cowado https://pypi.org/project/cowado/ 
+      + `cowado url` 适用于comic-walker.com
+  + BT:npx comic-walker KC_0010570000100011_E
+    + 设置：VPN:KILL SWITCH
+    + qbittorent：高级-网络接口-VPN, 隐私-强制加密，匿名模式，速度限制。上传速度不能太低，否则没下载速度。
+    + ~~盗版种子站：https://nyaa.si~~  ~~https://sukebei.nyaa.si~~
+    + ~~压制组：https://vcb-s.com/ https://nyaa.si/user/VCB-Studio~~
+  + PT: 
+    + 之前用西北工业大学的蒲公英，现在基本很难了
 + AI
   + AI对比（免费用）：https://lmarena.ai/
   + AI训练语音：https://github.com/RVC-Boss/GPT-SoVITS

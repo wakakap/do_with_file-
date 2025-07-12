@@ -7,7 +7,8 @@ import backend_logic as logic
 
 # --- 配置和启动检查 ---
 # 获取当前文件所在的目录作为根目录
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = "E:\\BROWSER"
 # 定义各个必要的媒体文件夹路径
 MANGA_PAGES_PATH = os.path.join(BASE_DIR, "MANGA_PAGES")
 MANGA_COVER_PATH = os.path.join(BASE_DIR, "MANGA_COVER")

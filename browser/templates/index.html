@@ -154,6 +154,7 @@
             pathStack: [], // 路径历史栈，用于实现返回功能
             inSearchMode: false, // 是否处于搜索结果模式
             isTagEditMode: false, // 是否处于Tag编辑模式
+            renderingId: 0, // 用于取消过时的渲染任务
             tagsData: {}, // 从服务器加载的原始标签数据
             tempTagsData: {}, // 在编辑模式下临时存放修改的标签数据
             gallery: { // 图片查看器（画廊）的状态
@@ -220,7 +221,7 @@
         
         async function browse(path = '') {
             // 浏览目录功能
-            // 如果在编辑模式下，先确认是否要放弃更改
+            state.renderingId++; // 创建新的渲染ID，使旧的渲染任务作废
             if(state.isTagEditMode && !await confirmExitTagEditMode()) return;
             state.inSearchMode = false; searchInput.value = ''; // 退出搜索模式
             const url = path ? `/api/browse?mode=${state.mode}&path=${encodeURIComponent(path)}` : `/api/browse?mode=${state.mode}`;
@@ -231,13 +232,14 @@
                 if (!state.pathStack.length || state.pathStack[state.pathStack.length - 1] !== data.current_path) { state.pathStack.push(data.current_path); }
                 pathLabel.textContent = `模式: ${state.mode} | ${state.currentPath}`;
                 mediaContainer.innerHTML = ''; // 确保容器清空
-                renderCardsStaggered(data.items); // 渲染卡片
+                renderCardsStaggered(data.items, 0, state.renderingId); // 渲染卡片
             }
         }
         
         async function search(query, type = 'keyword') {
             // 搜索功能
             if (!query) return;
+            state.renderingId++; // 创建新的渲染ID，使旧的渲染任务作废
             if(state.isTagEditMode && !await confirmExitTagEditMode()) return;
             state.inSearchMode = true; // 进入搜索模式
             const url = `/api/search?mode=${state.mode}&q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}`;
@@ -246,14 +248,15 @@
                 const searchLabel = type === 'tag' ? `標籤搜索: "${query}"` : `關鍵詞搜索: "${query}"`;
                 pathLabel.textContent = searchLabel; // 更新路径显示为搜索信息
                 mediaContainer.innerHTML = '';
-                renderCardsStaggered(data.items);
+                renderCardsStaggered(data.items, 0, state.renderingId);
             }
         }
         
         // --- 卡片渲染和 Tag UI ---
 
-        function renderCardsStaggered(items, index = 0) {
+        function renderCardsStaggered(items, index = 0, currentRenderingId) {
             // 错开渲染卡片，以获得更好的视觉效果，避免一次性渲染大量卡片导致卡顿
+            if (currentRenderingId !== state.renderingId) return;
             if (index >= items.length) return;
             const item = items[index];
             const cardClone = cardTemplate.content.cloneNode(true); // 使用 template 元素克隆新卡片
@@ -286,7 +289,14 @@
 
             mediaContainer.appendChild(cardClone);
             // 使用 setTimeout 递归调用，实现错开渲染
-            setTimeout(() => { renderCardsStaggered(items, index + 1); }, 15);
+            setTimeout(() => {
+                // 在执行递归调用之前，检查渲染ID是否仍然有效
+                if (currentRenderingId !== state.renderingId) {
+                    console.log('Staggered rendering cancelled.'); // 可以在控制台看到取消日志
+                    return; // 如果ID已过时，则终止渲染链
+                }
+                renderCardsStaggered(items, index + 1, currentRenderingId); 
+            }, 15);
         }
 
         function updateCardTagsDisplay(tagsContainer, itemKey) {

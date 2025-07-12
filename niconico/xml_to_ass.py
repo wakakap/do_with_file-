@@ -8,13 +8,16 @@ import math
 ## ffmpeg -i nullsrc=s=1920x1080 -vf "ass=20250708_so45145704_comments_ch_gai_extend.ass" ass.mov
 
 # --- 配置项 ---
-XML_FILE = 'niconico/takop/20250709_so45124910.xml'  # 替换成你的 XML 文件名
-OUTPUT_ASS_FILE = 'niconico/20250709_so45124910_comments.ass'     # 输出的 ASS 字幕文件名
+FILE_NAME = "20250713_ep3_会员7000+_so45169586"
+XML_FILE = f'niconico/takop/{FILE_NAME}.xml'  # 替换成你的 XML 文件名
+OUTPUT_ASS_FILE = f'niconico/takop/{FILE_NAME}_comments.ass'     # 输出的 ASS 字幕文件名
 VIDEO_WIDTH = 1920                   # 你的视频宽度 (像素)
 VIDEO_HEIGHT = 1080                  # 你的视频高度 (像素)
-BASE_FONT_SIZE = 50                  # 弹幕基准字体大小
-SCROLL_DURATION = 13                  # 滚动弹幕的持续时间 (秒)
+BASE_FONT_SIZE = 45                  # 弹幕基准字体大小
+SCROLL_DURATION = 16                  # 滚动弹幕的持续时间 (秒)
 FIXED_DURATION = 4                   # 顶部/底部固定弹幕的持续时间 (秒)
+AVOID_BLOCK_TIME =  4 
+JIANGE = 8               
 # --- 配置结束 ---
 
 # Niconico 颜色名到 ASS 颜色代码 (&HBBGGRR&) 的映射
@@ -67,7 +70,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     
     # 弹幕轨道，仅用于防止滚动弹幕重叠
-    num_tracks = VIDEO_HEIGHT // (BASE_FONT_SIZE + 10)
+    num_tracks = VIDEO_HEIGHT // (BASE_FONT_SIZE + JIANGE)
     track_availability = [0.0] * num_tracks
     
     with open(OUTPUT_ASS_FILE, 'w', encoding='utf-8') as f:
@@ -76,7 +79,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for chat in root.findall('chat'):
             try:
                 vpos_sec = int(chat.get('vpos')) / 100.0
-                text = chat.text
+                # text = chat.text
+                text = "".join(chat.itertext()).replace('\r\n', ' ').replace('\n', ' ')
                 mail = chat.get('mail', '').split() # 获取 mail 命令列表
 
                 if not text:
@@ -135,7 +139,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         chosen_track = random.randint(0, num_tracks - 1)
                     
                     # 更新此轨道的占用时间
-                    track_availability[chosen_track] = start_time + 2 # 假设弹幕进入屏幕需要2秒
+                    track_availability[chosen_track] = start_time + AVOID_BLOCK_TIME # 假设弹幕进入屏幕需要2秒
                     
                     y_pos = (chosen_track * (font_size + 10)) + font_size
                     text_width = len(text) * font_size

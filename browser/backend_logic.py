@@ -80,7 +80,12 @@ def load_cover_map(map_file_path):
 def find_cover_filename(cover_path, base_name, cover_map):
     """根据基础名称（不含扩展名）和映射规则，在封面目录中查找对应的封面文件名。"""
     if not os.path.isdir(cover_path): return None
-    # 1. 优先使用 map.txt 中的映射规则
+    # 尝试直接匹配同名文件
+    for ext in IMAGE_EXTENSIONS:
+        potential_cover_name = base_name + ext
+        if os.path.exists(os.path.join(cover_path, potential_cover_name)): 
+            return potential_cover_name
+    # 使用 map.txt 中的映射规则    
     for regex_obj, cover_template_str in cover_map:
         match_left = regex_obj.match(base_name)
         if match_left:
@@ -98,11 +103,6 @@ def find_cover_filename(cover_path, base_name, cover_map):
             except (KeyError, re.error): 
                 # 如果模板格式化失败或正则错误，则跳过此规则
                 continue
-    # 2. 如果映射规则没有找到，则尝试直接匹配同名文件
-    for ext in IMAGE_EXTENSIONS:
-        potential_cover_name = base_name + ext
-        if os.path.exists(os.path.join(cover_path, potential_cover_name)): 
-            return potential_cover_name
     return None
 
 def _create_item_data(full_path, root_path, cover_path, all_tags, cover_map):
@@ -242,7 +242,7 @@ def generate_covers_logic(path_to_scan, cover_path, cover_map):
             
             base_name = dir_name[:-1]
             # 检查这个项目是否已经有封面了
-            if find_cover_filename(cover_path, base_name, cover_map) is None:
+            if find_cover_filename(cover_path, dir_name, cover_map) is None:
                 special_dir_path = os.path.join(root, dir_name)
                 try:
                     # 获取目录内所有图片并进行自然排序
@@ -407,7 +407,10 @@ def auto_import_tags(item_name):
                     elif "配信開始日" == label_text:
                         if match := re.search(r'(\d{4})/\d{2}/\d{2}', data_tag.get_text()): found_tags.add(match.group(1))
                     elif "カテゴリー" == label_text:
-                        if category_link := data_tag.find('a'): found_tags.add(category_link.get_text(strip=True)[:2]) # 取类别前两个字
+                        if category_link := data_tag.find('a'): 
+                            text = category_link.get_text(strip=True)[:2]
+                            if text == "アダ": text = "成人"
+                            found_tags.add(text) # 取类别前两个字
             else:
                 print("警告：在最终页面中仍未找到 '作品詳細' 标题。")
 
