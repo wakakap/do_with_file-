@@ -4,6 +4,10 @@
   + 查Latex符号：https://detexify.kirelabs.org/
   + 查Unicode：https://shapecatcher.com/
   + 查书籍：https://search.worldcat.org/
++ API检索: 
+  + GOOGLE SEARCH: https://serpapi.com/
+  + BANGUMI: https://bangumi.github.io/api/
+  + DMM: https://pypi.org/project/dmm-search3/ https://affiliate.dmm.com/api/guide/
 + 文件处理：
   + 文件转换：https://www.aconvert.com/
   + 文件转换：https://pandoc.org/ `pandoc article.tex --bibliography=reference.bib --citeproc -o output.docx`
@@ -31,8 +35,8 @@
   + BT:npx comic-walker KC_0010570000100011_E
     + 设置：VPN:KILL SWITCH
     + qbittorent：高级-网络接口-VPN, 隐私-强制加密，匿名模式，速度限制。上传速度不能太低，否则没下载速度。
-    + ~~盗版种子站：https://nyaa.si~~  ~~https://sukebei.nyaa.si~~
-    + ~~压制组：https://vcb-s.com/ https://nyaa.si/user/VCB-Studio~~
+      + ~~盗版站：https://nyaa.si~~  ~~https://sukebei.nyaa.si~~ ~~e-hentai.org~~
+      + ~~压制组：https://vcb-s.com/ https://nyaa.si/user/VCB-Studio~~
   + PT: 
     + 之前用西北工业大学的蒲公英，现在基本很难了
 + AI
