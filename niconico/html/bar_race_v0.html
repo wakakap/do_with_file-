@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>霓虹弹幕竞赛图 (v4 - 动画分离版)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Electrolize&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --dark-bg: #0d0d21;
+            --light-text: #e0e0e0;
+            --glow-color-primary: #00aaff;
+            --glow-color-secondary: #ff00ff;
+        }
+
+        body {
+            font-family: 'Electrolize', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--dark-bg);
+            color: var(--light-text);
+            margin: 0;
+            padding: 20px 0;
+        }
+
+        h1 {
+            color: #fff;
+            text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px var(--glow-color-primary), 0 0 35px var(--glow-color-primary);
+        }
+        
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background-color: rgba(0,0,0,0.3);
+            padding: 20px 30px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 170, 255, 0.4);
+            box-shadow: 0 0 15px rgba(0, 170, 255, 0.2);
+            width: 80%;
+            max-width: 800px;
+        }
+        
+        .control-row {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        #file-input-label {
+            padding: 8px 16px;
+            cursor: pointer;
+            background-color: transparent;
+            color: var(--light-text);
+            border: 1px solid var(--glow-color-primary);
+            border-radius: 5px;
+            transition: all 0.3s;
+            box-shadow: 0 0 5px var(--glow-color-primary) inset;
+        }
+        
+        #file-input-label:hover {
+            background-color: var(--glow-color-primary);
+            color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--glow-color-primary);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        button {
+            font-family: 'Electrolize', sans-serif;
+            padding: 8px 18px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: var(--glow-color-secondary);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            transition: all 0.3s;
+            text-shadow: 0 0 5px #fff;
+            box-shadow: 0 0 8px var(--glow-color-secondary), 0 0 15px var(--glow-color-secondary) inset;
+        }
+
+        button:hover {
+            box-shadow: 0 0 15px var(--glow-color-secondary), 0 0 25px var(--glow-color-secondary) inset;
+        }
+        
+        button:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+            box-shadow: none;
+            text-shadow: none;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 180px;
+            background: transparent;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: var(--glow-color-primary);
+            border-radius: 5px;
+            box-shadow: 0 0 5px var(--glow-color-primary);
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            margin-top: -7px;
+            box-shadow: 0 0 10px #fff, 0 0 20px var(--glow-color-primary);
+        }
+
+        #chart-container {
+            width: 90%;
+            max-width: 960px;
+            background-color: rgba(0,0,0,0.3);
+            box-shadow: 0 0 25px rgba(0, 170, 255, 0.3);
+            border: 1px solid rgba(0, 170, 255, 0.4);
+            border-radius: 8px;
+            padding: 20px;
+            position: relative;
+            transition: height 0.4s ease-in-out; 
+        }
+
+        svg {
+            width: 100%;
+            transition: height 0.4s ease-in-out;
+        }
+
+        .bar-group {
+            transition: filter 0.4s linear;
+        }
+        
+        .bar-label, .bar-value {
+            font-size: 14px;
+            fill: #fff;
+            text-shadow: 0 0 2px #fff, 0 0 5px var(--glow-color-primary);
+        }
+
+        .bar-label { text-anchor: start; }
+        .bar-value { text-anchor: end; }
+        
+        .x-axis path.domain {
+            stroke-width: 0.5px;
+            stroke: rgba(0, 170, 255, 0.5);
+        }
+        .x-axis .tick line {
+            stroke-width: 0.5px;
+            stroke: rgba(0, 170, 255, 0.3);
+        }
+        .x-axis .tick text {
+            fill: rgba(0, 170, 255, 0.8);
+            font-size: 12px;
+            text-shadow: 0 0 3px rgba(0, 170, 255, 0.5);
+        }
+        
+        .time-label {
+            position: absolute;
+            bottom: 30px;
+            right: 40px;
+            font-size: 48px;
+            font-weight: bold;
+            color: rgba(255,255,255,0.6);
+            z-index: 10;
+            text-shadow: 0 0 5px #fff, 0 0 15px var(--glow-color-primary);
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>霓虹弹幕竞赛图</h1>
+
+    <div class="controls">
+        <div class="control-row">
+             <div class="control-group">
+                <label id="file-input-label" for="file-input">选择 .ass 文件</label>
+                <input type="file" id="file-input" accept=".ass">
+                <button id="play-pause-btn" disabled>播放</button>
+            </div>
+             <div class="control-group">
+                <label for="n-slider">条目数:</label>
+                <input type="range" id="n-slider" value="12" min="5" max="40" step="1">
+                <span id="n-value">12</span>
+            </div>
+        </div>
+        <div class="control-row">
+            <div class="control-group">
+                <label for="speed-slider">播放速度:</label>
+                <input type="range" id="speed-slider" value="700" min="0" max="900" step="50">
+                <span id="speed-value">快速</span>
+            </div>
+            <div class="control-group">
+                <label for="time-slider">时间轴:</label>
+                <input type="range" id="time-slider" value="0" min="0" disabled>
+            </div>
+        </div>
+    </div>
+
+    <div id="chart-container">
+        <div id="time-display" class="time-label">00:00</div>
+        <svg id="chart-svg"></svg>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- 全局变量和配置 ---
+            const margin = { top: 20, right: 150, bottom: 50, left: 10 };
+            const svg = d3.select("#chart-svg");
+            const timeDisplay = d3.select("#time-display");
+            
+            let chartWidth;
+            let animationTimer;
+            let keyframes = [];
+            let allParsedData = []; 
+            let currentKeyframeIndex = 0;
+            let isPlaying = false;
+
+            let n = 12;
+            const maxN = 40;
+            const timeStep = 0.5;
+            let playbackSpeed = 300; // 原 animationSpeed，改名为播放速度
+            // ===================== 改动 1: 新增固定的排名变化动画时长 =====================
+            const rankChangeAnimationDuration = 600; // 250ms
+
+            const initialTotalHeight = 600;
+
+            const fileInput = document.getElementById('file-input');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const timeSlider = document.getElementById('time-slider');
+            const speedSlider = document.getElementById('speed-slider');
+            const speedValue = document.getElementById('speed-value');
+            const nSlider = document.getElementById('n-slider');
+            const nValue = document.getElementById('n-value');
+
+            const colorScale = d3.scaleSequential(d3.interpolateCool).domain([maxN, 0]);
+
+            // 文件读取和解析 (无变化)
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    allParsedData = parseAssFile(e.target.result);
+                    if (allParsedData.length > 0) {
+                        keyframes = createKeyframes(allParsedData);
+                        initializeChart();
+                    } else {
+                        alert("未能从文件中解析出有效弹幕数据。");
+                    }
+                };
+                reader.readAsText(file);
+            });
+            function parseAssFile(text) {
+                const lines = text.split('\n');
+                const data = [];
+                const regex = /^Dialogue:\s*[^,]*?,([^,]+?),[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,(.*)/;
+                for (const line of lines) {
+                    const match = line.match(regex);
+                    if (match) {
+                        const timeStr = match[1];
+                        let content = match[2];
+                        content = content.replace(/{[^}]*}/g, '').trim();
+                        if (content) { data.push({ time: parseAssTime(timeStr), content: content }); }
+                    }
+                }
+                return data.sort((a, b) => a.time - b.time);
+            }
+            function parseAssTime(timeStr) {
+                const parts = timeStr.split(/[:.]/);
+                return (parseInt(parts[0]||0)*3600 + parseInt(parts[1]||0)*60 + parseInt(parts[2]||0) + parseInt(parts[3]||0)/100);
+            }
+            function createKeyframes(data) {
+                const frames = [];
+                if(data.length === 0) return frames;
+                const maxTime = data[data.length - 1].time+10;
+                let dataIndex = 0;
+                const counts = new Map();
+                for (let time = -1; time <= maxTime; time += timeStep) {
+                    while (dataIndex < data.length && data[dataIndex].time <= time) {
+                        const d = data[dataIndex];
+                        counts.set(d.content, (counts.get(d.content) || 0) + 1);
+                        dataIndex++;
+                    }
+                    let frameData = Array.from(counts, ([content, count]) => ({ content, count }));
+                    frameData.sort((a, b) => b.count - a.count);
+                    frameData = frameData.slice(0, maxN);
+                    frameData.forEach((d, i) => d.rank = i);
+                    frames.push({ time: time, data: frameData });
+                }
+                return frames;
+            }
+            
+            // 初始化图表
+            function initializeChart() {
+                if (animationTimer) clearTimeout(animationTimer);
+                isPlaying = false;
+                currentKeyframeIndex = 0;
+                
+                const container = document.getElementById('chart-container');
+                const rect = container.getBoundingClientRect();
+                chartWidth = rect.width - margin.left - margin.right;
+                
+                svg.attr("width", rect.width).attr("height", initialTotalHeight);
+                svg.selectAll("*").remove(); 
+
+                const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+                g.append("g").attr("class", "x-axis");
+
+                playPauseBtn.disabled = false;
+                playPauseBtn.textContent = "播放";
+                timeSlider.disabled = false;
+                timeSlider.max = keyframes.length - 1;
+                timeSlider.value = 0;
+
+                // ===================== 改动 3.1: 调用 updateChart 时指明不播放动画 =====================
+                updateChart(keyframes[0], false);
+            }
+            
+            // --- 核心：更新和渲染图表 ---
+            // ===================== 改动 2: updateChart 接受 withAnimation 参数 =====================
+            function updateChart(keyframe, withAnimation = true) {
+                if (!keyframe) return;
+                
+                // 根据参数决定动画时长，0表示立即更新
+                const duration = withAnimation ? rankChangeAnimationDuration : 0;
+                const g = svg.select("g");
+                const transition = svg.transition().duration(duration).ease(d3.easeLinear);
+
+                // ... (后面计算尺寸和比例尺的逻辑不变)
+                const minBarHeight = 20;
+                const padding = 0.2;
+                const minStep = minBarHeight / (1 - padding);
+                const requiredChartHeight = n * minStep;
+                const initialChartHeight = initialTotalHeight - margin.top - margin.bottom;
+                const currentChartHeight = Math.max(initialChartHeight, requiredChartHeight);
+                const currentTotalHeight = currentChartHeight + margin.top + margin.bottom;
+
+                svg.transition().duration(duration).attr("height", currentTotalHeight); // 高度变化也加入过渡
+
+                const displayData = keyframe.data.slice(0, n);
+
+                const x = d3.scaleLinear()
+                    .domain([0, d3.max(displayData, d => d.count) || 10])
+                    .range([0, chartWidth]);
+
+                const y = d3.scaleBand()
+                    .domain(displayData.map(d => d.content))
+                    .range([0, currentChartHeight])
+                    .padding(padding);
+
+                const bars = g.selectAll("g.bar-group")
+                    .data(displayData, d => d.content);
+                
+                const enterGroups = bars.enter().append("g").attr("class", "bar-group")
+                    .attr("transform", d => `translate(0, ${y(d.content) || currentChartHeight})`) // 优化进入位置
+                    .style("filter", d => `drop-shadow(0 0 4px ${colorScale(d.rank)})`);
+
+                enterGroups.append("rect")
+                    .attr("height", y.bandwidth())
+                    .attr("width", 0)
+                    .attr("rx", () => Math.min(20, y.bandwidth() / 2))
+                    .attr("fill", d => colorScale(d.rank));
+                
+                enterGroups.append("text").attr("class", "bar-label").attr("x", 5).attr("y", y.bandwidth() / 2).attr("dy", "0.35em").text(d => d.content);
+                enterGroups.append("text").attr("class", "bar-value").attr("x", 0).attr("y", y.bandwidth() / 2).attr("dy", "0.35em").text(d => d.count);
+                
+                // 合并 enter 和 update selection
+                const allGroups = enterGroups.merge(bars);
+
+                allGroups.transition(transition)
+                    .attr("transform", d => `translate(0, ${y(d.content)})`)
+                    .style("filter", d => `drop-shadow(0 0 4px ${colorScale(d.rank)})`);
+                
+                allGroups.select("rect").transition(transition)
+                    .attr("height", y.bandwidth())
+                    .attr("rx", () => Math.min(20, y.bandwidth() / 2))
+                    .attr("width", d => x(d.count))
+                    .attr("fill", d => colorScale(d.rank));
+
+                allGroups.selectAll("text").transition(transition).attr("y", y.bandwidth() / 2);
+                
+                allGroups.select(".bar-value").transition(transition)
+                    .attr("x", function(d) {
+                        const positionA = x(d.count) - 5;
+                        const labelElement = this.parentNode.querySelector('.bar-label');
+                        const labelWidth = labelElement ? labelElement.getBBox().width : 0;
+                        const labelPadding = 15;
+                        const positionB = 5 + labelWidth + labelPadding;
+                        return Math.max(positionA, positionB);
+                    })
+                    .tween("text", function(d) {
+                        const i = d3.interpolate(parseInt(this.textContent) || 0, d.count);
+                        return function(t) { this.textContent = Math.round(i(t)); };
+                    });
+                
+                bars.exit().transition(transition)
+                    .attr("transform", `translate(0, ${currentChartHeight})`)
+                    .style("opacity", 0)
+                    .remove();
+
+                g.select(".x-axis").attr("transform", `translate(0,${currentChartHeight})`)
+                  .transition(transition).call(d3.axisBottom(x).ticks(5).tickSize(-currentChartHeight));
+
+                const displayTime = Math.max(0, keyframe.time);
+                const minutes = Math.floor(displayTime / 60);
+                const seconds = Math.floor(displayTime % 60);
+                timeDisplay.text(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+            }
+            
+            // --- 控制逻辑 ---
+            function runAnimation() {
+                if (!isPlaying) return;
+                if (currentKeyframeIndex >= keyframes.length) {
+                    pauseAnimation();
+                    currentKeyframeIndex = keyframes.length - 1; 
+                    return;
+                }
+                // ===================== 改动 3.2: 调用 updateChart 时指明需要播放动画 =====================
+                updateChart(keyframes[currentKeyframeIndex], true);
+                timeSlider.value = currentKeyframeIndex;
+                currentKeyframeIndex++;
+                // 使用 playbackSpeed 控制帧间隔
+                animationTimer = setTimeout(runAnimation, playbackSpeed);
+            }
+            function playAnimation() {
+                isPlaying = true;
+                playPauseBtn.textContent = "暂停";
+                runAnimation();
+            }
+            function pauseAnimation() {
+                isPlaying = false;
+                playPauseBtn.textContent = "播放";
+                clearTimeout(animationTimer);
+            }
+            playPauseBtn.addEventListener('click', () => { if (isPlaying) pauseAnimation(); else playAnimation(); });
+            
+            timeSlider.addEventListener('input', () => {
+                pauseAnimation();
+                currentKeyframeIndex = +timeSlider.value;
+                // ===================== 改动 3.3: 拖动滑块时，不播放动画 =====================
+                if(keyframes[currentKeyframeIndex]) { updateChart(keyframes[currentKeyframeIndex], false); }
+            });
+
+            speedSlider.addEventListener('input', (e) => {
+                // 现在只更新播放速度，不影响动画时长
+                playbackSpeed = 900 - e.target.value;
+                // 确保播放速度（帧间隔）不会小于单个动画的渲染时长
+                // playbackSpeed = Math.max(900 - e.target.value, rankChangeAnimationDuration);
+                const val = e.target.value;
+                if (val > 800) speedValue.textContent = '极速';
+                else if (val > 600) speedValue.textContent = '快速';
+                else if (val > 400) speedValue.textContent = '中速';
+                else if (val > 200) speedValue.textContent = '慢速';
+                else speedValue.textContent = '极慢';
+            });
+
+            nSlider.addEventListener('input', (e) => {
+                n = +e.target.value;
+                nValue.textContent = n;
+                if (keyframes.length > 0) {
+                    pauseAnimation();
+                    // ===================== 改动 3.4: 改变条目数时，不播放动画 =====================
+                    updateChart(keyframes[currentKeyframeIndex], false);
+                }
+            });
+            window.addEventListener('resize', () => {
+                if(keyframes.length > 0) {
+                    initializeChart();
+                    // ===================== 改动 3.5: 缩放窗口时，不播放动画 =====================
+                    updateChart(keyframes[currentKeyframeIndex], false);
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
