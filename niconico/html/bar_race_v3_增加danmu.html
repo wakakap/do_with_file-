@@ -352,7 +352,7 @@
                         
                         content = content
                             .replace(/{[^}]*}/g, '')
-                            .replace(/[\u3000-\u303F\uFF00-\uFF65\u2000-\u206F\u0020-\u007F]/g, '')
+                            // .replace(/[\u3000-\u303F\uFF00-\uFF65\u2000-\u206F\u0020-\u007F]/g, '')
                             .trim();
 
                         if (content) {
@@ -521,6 +521,7 @@
                 const allGroups = enterGroups.merge(bars);
 
                 allGroups.transition(transition)
+                    .style("opacity", 1)
                     .attrTween("transform", function(d) {
                         const currentTransform = d3.select(this).attr("transform") || `translate(0, ${chartHeight})`;
                         const match = /translate\((.*?),(.*?)\)/.exec(currentTransform);

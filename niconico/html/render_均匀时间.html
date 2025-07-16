@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NICONICO Comments Race</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Electrolize&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --dark-bg: #0d0d21;
+            --light-text: #e0e0e0;
+            --glow-color-primary: #00aaff;
+            --glow-color-secondary: #ff00ff;
+        }
+        body {
+            font-family: 'Electrolize', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--dark-bg);
+            color: var(--light-text);
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        h1, .controls, .hover-trigger-area {
+            display: none;
+        }
+        #chart-container { width: 90vw; max-width: calc(90vh * (16 / 9)); aspect-ratio: 16 / 9; background-color: rgba(0,0,0,0.3); box-shadow: 0 0 25px rgba(0, 170, 255, 0.3); border: 1px solid rgba(0, 170, 255, 0.4); border-radius: 8px; padding: 20px; position: relative; box-sizing: border-box; }
+        svg { width: 100%; height: 100%; }
+        .bar-group { transition: filter 0.4s linear; }
+        .bar-label, .bar-value { font-size: 14px; fill: #ff00c8; text-shadow: 0 0 5px #fff, 0 0 5px var(--glow-color-primary); }
+        .bar-label { text-anchor: start; }
+        .bar-value { text-anchor: end; }
+        .x-axis path.domain { stroke-width: 0.5px; stroke: rgba(0, 170, 255, 0.5); }
+        .x-axis .tick line { stroke-width: 0.5px; stroke: rgba(0, 170, 255, 0.3); }
+        .x-axis .tick text { fill: rgba(0, 170, 255, 0.8); font-size: 12px; text-shadow: 0 0 3px rgba(0, 170, 255, 0.5); }
+        .time-label { position: absolute; bottom: 30px; right: 40px; font-size: 48px; font-weight: bold; color: rgba(255,255,255,0.6); z-index: 10; text-shadow: 0 0 5px #fff, 0 0 15px var(--glow-color-primary); }
+        #video-container { position: absolute; bottom: 20px; right: 220px; width: calc(100% / 3); height: calc(100% * 2 / 3); z-index: 15; background-color: rgba(0,0,0,0.1); pointer-events: none; overflow: visible; }
+        #video-player { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.5s; }
+        #video-overlay-text { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); font-size: 88px; font-weight: bold; color: #fff; text-shadow: 0 0 5px #fff, 0 0 12px var(--glow-color-secondary), 0 0 25px var(--glow-color-secondary); pointer-events: none; opacity: 0; transition: opacity 0.5s ease-in-out; text-align: center; white-space: nowrap; }
+        @keyframes fadeInOut { 0% { opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+        #video-overlay-text.show { animation: fadeInOut 1s ease-in-out forwards; }
+        #word-cloud-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background-color: rgba(13, 13, 33, 0.95); display: none; display: flex; align-items: center; justify-content: center; }
+        #word-cloud-svg text { font-family: 'Electrolize', sans-serif; cursor: pointer; transition: opacity 0.3s; }
+        #word-cloud-svg text:hover { opacity: 0.7; }
+        #danmaku-container { position: absolute; right: 0; bottom: 0; width: 80%; height: 80%; z-index: 12; overflow: hidden; pointer-events: none; }
+        .danmaku-comment { position: absolute; color: white; opacity: 0.6; font-size: 22px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.8); white-space: nowrap; will-change: transform; transform: translateX(100vw); }
+    </style>
+</head>
+<body>
+    <div id="chart-container">
+        <div id="time-display" class="time-label">00:00</div>
+        <svg id="chart-svg"></svg>
+        <div id="danmaku-container"></div>
+        <div id="video-container">
+            <video id="video-player"></video>
+            <div id="video-overlay-text"></div>
+        </div>
+        <div id="word-cloud-container">
+            <svg id="word-cloud-svg"></svg>
+        </div>
+    </div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/jasondavies/d3-cloud@v1.2.7/build/d3.layout.cloud.js"></script>
+
+    <script>
+        // --- SECTION 1: GLOBAL SCOPE DEFINITIONS ---
+        // All variables and functions are defined here to avoid ReferenceErrors.
+
+        // --- Global Variables & Configuration ---
+        const margin = { top: 20, right: 150, bottom: 40, left: 20 };
+        let svg, timeDisplay, danmakuContainer, videoPlayerElement, videoPlayer;
+        let chartWidth, chartHeight;
+        
+        let keyframes = [];
+        let allParsedData = [];
+        let danmakuData = [];
+        let nextDanmakuIndex = 0;
+        let activeDanmakuAnimations = [];
+
+        let currentKeyframeIndex = 0;
+        let isPlaying = false;
+        
+        let n = 12; // Default
+        const maxN = 40;
+        const timeStep = 0.5;
+        let danmakuSpeedMultiplier = 1.0; //Default
+        const rankChangeAnimationDuration = 450;
+        const colorScale = d3.scaleSequential(d3.interpolateCool).domain([maxN, 0]);
+
+        // --- Data Processing Functions ---
+        function parseAssFile(text) {
+            const lines = text.split('\n');
+            const data = [];
+            const regex = /^Dialogue:\s*[^,]*?,([^,]+?),([^,]+?),[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,(.*)/;
+            for (const line of lines) {
+                const match = line.match(regex);
+                if (match) {
+                    const startStr = match[1];
+                    const endStr = match[2];
+                    let content = match[3].replace(/{[^}]*}/g, '').trim();
+                    if (content) {
+                        const startTime = parseAssTime(startStr);
+                        const endTime = parseAssTime(endStr);
+                        if (endTime > startTime) { data.push({ startTime, endTime, content }); }
+                    }
+                }
+            }
+            return data.sort((a, b) => a.startTime - b.startTime);
+        }
+
+        function parseAssTime(timeStr) {
+            const parts = timeStr.split(/[:.]/);
+            return (parseInt(parts[0] || 0) * 3600 + parseInt(parts[1] || 0) * 60 + parseInt(parts[2] || 0) + parseInt(parts[3] || 0) / 100);
+        }
+
+        function createKeyframesAsync(data, callback) {
+            const frames = [];
+            if (data.length === 0) { callback(frames); return; }
+            const maxTime = data[data.length - 1].time + 5;
+            let dataIndex = 0;
+            const counts = new Map();
+            for (let currentTime = 0; currentTime <= maxTime; currentTime += timeStep) {
+                while (dataIndex < data.length && data[dataIndex].time <= currentTime) {
+                    const d = data[dataIndex];
+                    counts.set(d.content, (counts.get(d.content) || 0) + 1);
+                    dataIndex++;
+                }
+                let frameData = Array.from(counts, ([content, count]) => ({ content, count }));
+                frameData.sort((a, b) => b.count - a.count);
+                frameData = frameData.slice(0, maxN);
+                frameData.forEach((d, i) => d.rank = i);
+                frames.push({ time: currentTime, data: frameData });
+            }
+            callback(frames);
+        }
+
+        function precomputeVideoTriggersAsync(allFrames, callback) {
+            const PREDICT_SECONDS = 2.5;
+            const LOOKBACK_SECONDS = 3;
+            const COUNT_THRESHOLD = 10;
+            const predictSteps = Math.round(PREDICT_SECONDS / timeStep);
+            const lookbackSteps = Math.round(LOOKBACK_SECONDS / timeStep);
+            for (let currentIndex = 0; currentIndex < allFrames.length; currentIndex++) {
+                const futureIndex = currentIndex + predictSteps;
+                const lookbackIndex = futureIndex - lookbackSteps;
+                if (futureIndex < allFrames.length && lookbackIndex >= 0) {
+                    const futureFrame = allFrames[futureIndex];
+                    const pastFrame = allFrames[lookbackIndex];
+                    const pastCounts = new Map(pastFrame.data.map(d => [d.content, d.count]));
+                    const futureVisibleData = futureFrame.data.slice(0, n);
+                    for (const bar of futureVisibleData) {
+                        const pastCount = pastCounts.get(bar.content) || 0;
+                        if (bar.count - pastCount > COUNT_THRESHOLD) {
+                            const triggerTime = allFrames[currentIndex].time;
+                            allFrames[currentIndex].videoTrigger = { startTime: Math.max(0, triggerTime), reason: bar.content };
+                            break;
+                        }
+                    }
+                }
+            }
+            callback(allFrames);
+        }
+        
+        // --- Chart & Animation Functions ---
+        function initializeChart() {
+            const container = document.getElementById('chart-container');
+            const rect = container.getBoundingClientRect();
+            chartWidth = rect.width - margin.left - margin.right;
+            chartHeight = rect.height - margin.top - margin.bottom;
+            svg.selectAll("*").remove();
+            const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+            g.append("g").attr("class", "x-axis");
+            updateChart(keyframes[0], null, false);
+        }
+
+        function updateChart(keyframe, previousKeyframe, withAnimation = true) {
+            if (!keyframe) return;
+            const duration = withAnimation ? rankChangeAnimationDuration : 0;
+            const g = svg.select("g");
+            const transition = svg.transition().duration(duration).ease(d3.easeLinear);
+            const displayData = keyframe.data.slice(0, n);
+            const y = d3.scaleBand().domain(displayData.map(d => d.content)).range([0, chartHeight]).padding(0.2);
+            const x = d3.scaleLinear().domain([0, d3.max(displayData, d => d.count) || 10]).range([0, chartWidth]);
+
+            const bars = g.selectAll("g.bar-group").data(displayData, d => d.content);
+            const enterGroups = bars.enter().append("g").attr("class", "bar-group").attr("transform", `translate(0, ${chartHeight})`).style("filter", d => `drop-shadow(0 0 4px ${colorScale(d.rank)})`);
+            enterGroups.append("rect").attr("height", y.bandwidth()).attr("width", 0).attr("rx", () => Math.min(20, y.bandwidth() / 2)).attr("fill", d => colorScale(d.rank));
+            enterGroups.append("text").attr("class", "bar-label").attr("x", 5).attr("y", y.bandwidth() / 2).attr("dy", "0.35em").text(d => d.content);
+            enterGroups.append("text").attr("class", "bar-value").attr("x", 0).attr("y", y.bandwidth() / 2).attr("dy", "0.35em").text(d => d.count);
+            const allGroups = enterGroups.merge(bars);
+            allGroups.transition(transition).attr("transform", d => `translate(0,${y(d.content)})`).style("filter", d => `drop-shadow(0 0 4px ${colorScale(d.rank)})`);
+            allGroups.select("rect").transition(transition).attr("height", y.bandwidth()).attr("rx", () => Math.min(20, y.bandwidth() / 2)).attr("width", d => x(d.count)).attr("fill", d => colorScale(d.rank));
+            allGroups.selectAll("text").transition(transition).attr("y", y.bandwidth() / 2);
+            allGroups.select(".bar-value").transition(transition).attr("x", d => x(d.count) - 10).tween("text", function (d) {
+                const i = d3.interpolate(parseInt(this.textContent) || 0, d.count);
+                return function (t) { this.textContent = Math.round(i(t)); };
+            });
+            bars.exit().transition(transition).attr("transform", `translate(0, ${chartHeight})`).style("opacity", 0).remove();
+            g.select(".x-axis").attr("transform", `translate(0,${chartHeight})`).transition(transition).call(d3.axisBottom(x).ticks(5).tickSize(-chartHeight));
+            const displayTime = Math.max(0, keyframe.time);
+            timeDisplay.text(`${String(Math.floor(displayTime / 60)).padStart(2, '0')}:${String(Math.floor(displayTime % 60)).padStart(2, '0')}`);
+        }
+
+        function updateDanmakuOnPlayback(currentTime) {
+            while (danmakuData[nextDanmakuIndex] && danmakuData[nextDanmakuIndex].startTime <= currentTime) {
+                launchDanmaku(danmakuData[nextDanmakuIndex]);
+                nextDanmakuIndex++;
+            }
+        }
+        
+        function rebuildDanmakuAtTime(currentTime) {
+            clearDanmaku();
+            nextDanmakuIndex = danmakuData.findIndex(d => d.startTime > currentTime);
+            if (nextDanmakuIndex === -1) nextDanmakuIndex = danmakuData.length;
+            for (let i = 0; i < nextDanmakuIndex; i++) {
+                const d = danmakuData[i];
+                if (currentTime < d.endTime) { launchDanmaku(d); }
+            }
+        }
+
+        function launchDanmaku(d) {
+            const el = document.createElement('div');
+            el.classList.add('danmaku-comment');
+            el.textContent = d.content;
+            el.style.top = `${Math.random() * 90}%`;
+            danmakuContainer.appendChild(el);
+            const containerWidth = danmakuContainer.offsetWidth;
+            const elWidth = el.offsetWidth;
+            const fullDuration = (d.endTime - d.startTime) * 1000;
+            const animation = el.animate([{ transform: `translateX(${containerWidth}px)` }, { transform: `translateX(-${elWidth}px)` }], { duration: fullDuration, easing: 'linear' });
+            animation.updatePlaybackRate(danmakuSpeedMultiplier);
+            el.__danmaku_data__ = d;
+            activeDanmakuAnimations.push(animation);
+            animation.onfinish = () => {
+                el.remove();
+                activeDanmakuAnimations = activeDanmakuAnimations.filter(a => a !== animation);
+            };
+        }
+
+        function clearDanmaku() {
+            activeDanmakuAnimations.forEach(anim => anim.cancel());
+            activeDanmakuAnimations = [];
+            danmakuContainer.innerHTML = '';
+        }
+
+        function playVideoSegment(startTime, reason) {
+            const overlayText = document.getElementById('video-overlay-text');
+            overlayText.textContent = reason;
+            overlayText.style.transform = `translate(-50%, -50%) rotate(${5 + Math.random() * 25}deg)`;
+            overlayText.classList.add('show');
+            setTimeout(() => { overlayText.classList.remove('show'); }, 1000);
+            if (reason === videoPlayer.currentReason) return;
+            videoPlayer.currentReason = reason;
+            videoPlayer.element.style.opacity = '1';
+            videoPlayer.element.currentTime = startTime;
+            videoPlayer.element.play();
+        }
+
+        // --- SECTION 2: AUTOMATION INTERFACE ---
+        window.automation = {
+            ready: false,
+            setParameters: (numBars, speedMultiplier) => {
+                n = numBars;
+                danmakuSpeedMultiplier = speedMultiplier;
+            },
+            loadDataAndInitialize: (assText, videoSrc) => {
+                return new Promise((resolve, reject) => {
+                    try {
+                        videoPlayerElement.src = videoSrc;
+                        danmakuData = parseAssFile(assText);
+                        allParsedData = danmakuData.map(d => ({ time: d.startTime, content: d.content })).sort((a, b) => a.time - b.time);
+
+                        if (allParsedData.length > 0) {
+                            createKeyframesAsync(allParsedData, (generatedKeyframes) => {
+                                precomputeVideoTriggersAsync(generatedKeyframes, (finalKeyframes) => {
+                                    keyframes = finalKeyframes;
+                                    initializeChart();
+                                    window.automation.ready = true;
+                                    console.log("Initialization complete. Ready to render.");
+                                    resolve({ frameCount: finalKeyframes.length });
+                                });
+                            });
+                        } else {
+                            reject("Failed to parse valid data from ASS file.");
+                        }
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            },
+            renderNextStep: () => {
+                if (!window.automation.ready || !isPlaying) { return { done: currentKeyframeIndex >= keyframes.length, time: -1 }; }
+                if (currentKeyframeIndex >= keyframes.length) { isPlaying = false; return { done: true, time: keyframes[keyframes.length - 1].time }; }
+
+                const currentFrame = keyframes[currentKeyframeIndex];
+                if (!currentFrame) { isPlaying = false; return { done: true, time: -1 }; }
+
+                updateDanmakuOnPlayback(currentFrame.time);
+                if (currentFrame.videoTrigger) { playVideoSegment(currentFrame.videoTrigger.startTime, currentFrame.videoTrigger.reason); }
+                updateChart(currentFrame, keyframes[currentKeyframeIndex - 1], true);
+                currentKeyframeIndex++;
+                return { done: false, time: currentFrame.time };
+            },
+            start: () => {
+                isPlaying = true;
+                currentKeyframeIndex = 0;
+                updateChart(keyframes[0], null, false);
+                rebuildDanmakuAtTime(0);
+                activeDanmakuAnimations.forEach(anim => anim.pause());
+            },
+            seekTo: (timeInSeconds) => {
+                activeDanmakuAnimations.forEach(anim => {
+                    const d = anim.effect.target.__danmaku_data__;
+                    if (d) {
+                        const elapsedTime = (timeInSeconds - d.startTime) * 1000;
+                        if (elapsedTime >= 0 && elapsedTime < anim.effect.getTiming().duration) { anim.currentTime = elapsedTime; }
+                    }
+                });
+                if (videoPlayer.element.paused) { videoPlayer.element.currentTime = timeInSeconds; }
+            }
+        };
+        
+        // --- SECTION 3: DOM-READY EXECUTION ---
+        document.addEventListener('DOMContentLoaded', function () {
+            // Assign DOM elements to global variables once the DOM is ready.
+            svg = d3.select("#chart-svg");
+            timeDisplay = d3.select("#time-display");
+            danmakuContainer = document.getElementById('danmaku-container');
+            videoPlayerElement = document.getElementById('video-player');
+            videoPlayer = { element: videoPlayerElement, currentReason: null };
+            // Now the automation interface can be safely called by the Python script.
+        });
+    </script>
+</body>
+</html>

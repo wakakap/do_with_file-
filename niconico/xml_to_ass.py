@@ -8,7 +8,7 @@ import math
 ## ffmpeg -i nullsrc=s=1920x1080 -vf "ass=20250708_so45145704_comments_ch_gai_extend.ass" ass.mov
 
 # --- 配置项 ---
-FILE_NAME = "20250713_ep3_会员7000+_so45169586"
+FILE_NAME = "20250716_ep1_4万+_so45124910"
 XML_FILE = f'niconico/takop/{FILE_NAME}.xml'  # 替换成你的 XML 文件名
 OUTPUT_ASS_FILE = f'niconico/takop/{FILE_NAME}_comments.ass'     # 输出的 ASS 字幕文件名
 VIDEO_WIDTH = 1920                   # 你的视频宽度 (像素)
