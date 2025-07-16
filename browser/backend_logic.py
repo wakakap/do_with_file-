@@ -371,7 +371,7 @@ def auto_import_tags(item_name):
         # 根据当前页面的 URL 判断是同人作品还是商业作品，使用不同的解析逻辑
         if "/doujin/" in driver.current_url:
             print("解析 Doujin 页面...")
-            found_tags.add("同人"); found_tags.add("成人")
+            found_tags.add("同人")
             author_icon = soup.select_one('span[class*="author"]')
             if author_icon:
                 # 2. 如果找到，就获取它后面的 a 标签

@@ -1,3 +1,19 @@
+# 环境文件
 .env
-__pycache__
-build
+*.env
+
+# JSON 文件
+*.json
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 虚拟环境
+env/
+venv/
+
+# 构建产物
+build/
+dist/
+*.egg-info/
