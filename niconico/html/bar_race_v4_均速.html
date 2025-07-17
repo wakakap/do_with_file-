@@ -176,7 +176,7 @@
             bottom: 0;
             width: 80%;
             height: 80%;
-            z-index: 12;
+            z-index: 20;
             overflow: hidden;
             pointer-events: none;
         }
@@ -257,7 +257,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             // --- 全局变量和配置 ---
             const MOVE_DANMAKU_DURATION = 8; // 所有动态弹幕的统一运动时长（秒）
-            const TRACK_OCCUPANCY_THRESHOLD = MOVE_DANMAKU_DURATION / 3.5; // 轨道占用时间（秒）
+            const TRACK_OCCUPANCY_THRESHOLD = 3.5; // 轨道占用时间（秒）
             let trackStatus = [];       // 存储每条轨道的“可用”时间戳
             let staticDanmakuOccupancy = {
                 1: [], 2: [], 3: [], // 底部 (左, 中, 右)
@@ -285,8 +285,9 @@
 
             let n = 12;
             const maxN = 40;
-            const timeStep = 0.3;
-            let playbackSpeed = 500; 
+            const timeStep = 0.5;
+            const PLAYWAIT = 500; 
+            let playwait = PLAYWAIT; 
             const rankChangeAnimationDuration = 600;
             const VIDEO_LENGTH = 2;
 
@@ -693,7 +694,9 @@
                 }
 
                 const previousFrame = keyframes[currentKeyframeIndex - 1];
-                const delay = playbackSpeed;
+                //koko
+                const delay = playwait;
+                //koko
 
                 updateChart(currentFrame, previousFrame, true);
                 
@@ -981,7 +984,7 @@
 
             speedSlider.addEventListener('input', (e) => {
                 const multiplier = parseFloat(e.target.value);
-                playbackSpeed = 500 / multiplier;
+                playwait = PLAYWAIT / multiplier;
                 speedValue.textContent = multiplier.toFixed(1) + 'x';
                 
                 const rate = parseFloat(speedSlider.value);

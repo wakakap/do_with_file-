@@ -398,6 +398,7 @@
                 const allGroups = enterGroups.merge(bars);
 
                 allGroups.transition(transition)
+                    .style("opacity", 1)
                     .attrTween("transform", function(d) {
                         const currentTransform = d3.select(this).attr("transform") || `translate(0, ${currentChartHeight})`;
                         const match = /translate\((.*?),(.*?)\)/.exec(currentTransform);
