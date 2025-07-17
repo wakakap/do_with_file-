@@ -3,5 +3,8 @@
   - v3有两个版本。增加均匀变化版本，为了之后原速渲染视频。
   - 如果步长调得太小会严重卡顿。0.5就比较好了。
   - 即使是均速变化的，在触发视频时还是会有小卡顿，但后期渲染不会包含视频，之后看看编辑的时候能不能吻合。
-- 渲染：python render_均匀时间.py "E:/抽吧唧/章鱼p/1/20250716_ep1_4万+_so45124910_comments.ass" "E:/抽吧唧/章鱼p/1/ANi_章魚嗶的原罪_01_1080PBahaWEB_DLAAC_AVCCHT.mp4" -o "E:/抽吧唧/章鱼p/1/final_race.mp4"
-- python render_动画优先.py "E:/抽吧唧/章鱼p/1/20250716_ep1_4万+_so45124910_comments.ass" "E:/抽吧唧/章鱼p/1/KitaujiSub_Takopii_no_Genzai_01WebRipHEVC_AACCHS_JP&CHT_JP.mkv" -o "E:/抽吧唧/章鱼p/1/final_race_j.mp4"
+- 渲染：
+  - python render_video.py --ass_file "..." --video_file "..." --temp_dir "D:/video_cache"
+  - python render_video.py --ass_file "my_comments.ass" --video_file "background.mp4" --n_bars 20 --width 1920 --height 1080
+  - python render_video.py --ass_file "E:/抽吧唧/章鱼p/1/doublesub.ass" --video_file "background.mp4" --music_file "E:/抽吧唧/章鱼p/John_Harrison_with_the_Wichita_State_University_Chamber_Players_-_01_-_Spring_Mvt_1_Allegro.mp3" --output_file "final_race.mp4" --n_bars 30 --width 1920 --height 1080 --fps 30 --render_duration --speed 16
+  - 渲染测试：python render_video.py --ass_file "my_comments.ass" --video_file "background.mp4" --render_duration 10 --output_file "test_render.mp4"

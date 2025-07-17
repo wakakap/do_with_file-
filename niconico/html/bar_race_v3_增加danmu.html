@@ -681,7 +681,7 @@
             function playVideoSegment(startTime, reason) {
                 const overlayText = document.getElementById('video-overlay-text');
                 overlayText.textContent = reason; 
-                const randomRotation = 5 + Math.random() * 25;
+                const randomRotation = Math.random() * 25;
                 overlayText.style.transform = `translate(-50%, -50%) rotate(${randomRotation}deg)`;
                 overlayText.classList.add('show');
                 setTimeout(() => {

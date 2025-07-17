@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NICONICO Comments Race - Renderer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Electrolize&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --dark-bg: #0d0d21;
+            --light-text: #e0e0e0;
+            --glow-color-primary: #00aaff;
+            --glow-color-secondary: #ff00ff;
+        }
+        body {
+            font-family: 'Electrolize', sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--light-text);
+            margin: 0;
+            padding: 0;
+            width: 1920px; /* Default, will be set by Python */
+            height: 1080px; /* Default, will be set by Python */
+            overflow: hidden;
+        }
+        #chart-container { 
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.3); 
+            box-shadow: 0 0 25px rgba(0, 170, 255, 0.3); 
+            border: 1px solid rgba(0, 170, 255, 0.4); 
+            border-radius: 8px; 
+            padding: 20px; 
+            position: relative; 
+            box-sizing: border-box;
+        }
+        svg { width: 100%; height: 100%; }
+        .bar-label, .bar-value { font-size: 15px; font-weight: bold;fill: #ff00c8; text-shadow: 0 0 5px #fff, 0 0 15px #fff, 0 0 25px #fff,0 0 5px var(--glow-color-primary); }
+        .bar-label { text-anchor: start; }
+        .bar-value { text-anchor: end; }
+        .x-axis path.domain { stroke-width: 0.5px; stroke: rgba(0, 170, 255, 0.5); }
+        .x-axis .tick line { stroke-width: 0.5px; stroke: rgba(0, 170, 255, 0.3); }
+        .x-axis .tick text { fill: rgba(0, 170, 255, 0.8); font-size: 12px; text-shadow: 0 0 3px rgba(0, 170, 255, 0.5); }
+        .time-label { position: absolute; bottom: 30px; right: 40px; font-size: 48px; font-weight: bold; color: rgba(255,255,255,0.6); z-index: 10; text-shadow: 0 0 5px #fff, 0 0 15px var(--glow-color-primary); }
+        #danmaku-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 12;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .danmaku-comment {
+            position: absolute;
+            color: white;
+            opacity: 0.6;
+            font-size: 22px;
+            font-weight: bold;
+            text-shadow: 0 0 2px rgba(0,0,0,0.8);
+            white-space: nowrap;
+            will-change: transform;
+        }
+    </style>
+</head>
+<body>
+    <div id="chart-container">
+        <div id="time-display" class="time-label">00:00</div>
+        <svg id="chart-svg"></svg>
+        <div id="danmaku-container"></div>
+    </div>
+    
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // --- Global Variables & Configuration ---
+        const MOVE_DANMAKU_DURATION = 8;
+        const TRACK_OCCUPANCY_THRESHOLD = MOVE_DANMAKU_DURATION / 3.5;
+        const timeStep = 0.5;
+        const maxN = 40; // Hardcoded max for color scale
+        
+        let margin, svg, timeDisplay, danmakuContainer;
+        let chartWidth, chartHeight;
+        let keyframes = [];
+        let danmakuData = [];
+        let assResolution = { w: 1920, h: 1080 };
+        let trackStatus = [], trackHeight = 0, totalTracks = 0;
+        let n = 12; // Default, will be set by initialize
+        
+        const colorScale = d3.scaleSequential(d3.interpolateCool).domain([maxN, 0]);
+
+        // --- Core Rendering Logic ---
+        
+        function setupDOM(width, height) {
+            document.body.style.width = `${width}px`;
+            document.body.style.height = `${height}px`;
+            margin = { top: 20, right: 150, bottom: 40, left: 20 };
+            svg = d3.select("#chart-svg");
+            timeDisplay = d3.select("#time-display");
+            danmakuContainer = d3.select("#danmaku-container");
+
+            const container = document.getElementById('chart-container');
+            const rect = container.getBoundingClientRect();
+            chartWidth = rect.width - margin.left - margin.right;
+            chartHeight = rect.height - margin.top - margin.bottom;
+
+            const baseFontSizeForTrack = 30 * (chartHeight / 1080);
+            trackHeight = baseFontSizeForTrack * 1.5;
+            totalTracks = Math.floor(chartHeight / trackHeight);
+            trackStatus = new Array(totalTracks).fill(0);
+
+            svg.selectAll("*").remove();
+            const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+            g.append("g").attr("class", "x-axis");
+        }
+        
+        function lerp(a, b, t) {
+            return a * (1 - t) + b * t;
+        }
+
+        function updateChart(keyframeData) {
+            const g = svg.select("g");
+            const displayData = keyframeData.data.slice(0, n);
+            
+            const y = d3.scaleBand()
+                .domain(displayData.map(d => d.content))
+                .range([0, chartHeight])
+                .padding(0.2);
+            
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(displayData, d => d.count) || 10])
+                .range([0, chartWidth]);
+
+            const bars = g.selectAll("g.bar-group").data(displayData, d => d.content);
+            const enterGroups = bars.enter().append("g").attr("class", "bar-group")
+                .style("filter", d => `drop-shadow(0 0 4px ${colorScale(d.rank)})`);
+
+            enterGroups.append("rect");
+            enterGroups.append("text").attr("class", "bar-label");
+            enterGroups.append("text").attr("class", "bar-value");
+            
+            const allGroups = enterGroups.merge(bars);
+
+            allGroups
+                .attr("transform", d => `translate(0, ${y(d.content)})`)
+                .style("filter", d => `drop-shadow(0 0 4px ${colorScale(d.rank)})`);
+            
+            allGroups.select("rect")
+                .attr("height", y.bandwidth())
+                .attr("rx", () => Math.min(20, y.bandwidth() / 2))
+                .attr("width", d => x(d.count))
+                .attr("fill", d => colorScale(d.rank));
+                
+            allGroups.select(".bar-label")
+                .attr("x", 5)
+                .attr("y", y.bandwidth() / 2)
+                .attr("dy", "0.35em")
+                .text(d => d.content);
+                
+            allGroups.select(".bar-value")
+                .attr("y", y.bandwidth() / 2)
+                .attr("dy", "0.35em")
+                .text(d => Math.round(d.count))
+                 .attr("x", function(d) {
+                    const positionA = x(d.count) - 10;
+                    const labelElement = this.parentNode.querySelector('.bar-label');
+                    const labelWidth = labelElement ? labelElement.getBBox().width : 0;
+                    return Math.max(positionA, 5 + labelWidth + 15);
+                });
+            
+            bars.exit().remove();
+            g.select(".x-axis").attr("transform", `translate(0,${chartHeight})`).call(d3.axisBottom(x).ticks(5).tickSize(-chartHeight));
+            const displayTime = Math.max(0, keyframeData.time);
+            const minutes = Math.floor(displayTime / 60);
+            const seconds = Math.floor(displayTime % 60);
+            timeDisplay.text(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+        }
+
+        function renderDanmakuAtTime(currentTime) {
+            danmakuContainer.html(''); // Clear existing danmaku
+            trackStatus.fill(0); // Reset track status for static frame render
+            
+            const activeDanmaku = danmakuData.filter(d => currentTime >= d.startTime && currentTime < d.endTime);
+
+            activeDanmaku.forEach(d => {
+                const el = document.createElement('div');
+                el.classList.add('danmaku-comment');
+                el.textContent = d.text;
+                el.style.color = d.styles.color;
+                if (d.styles.fontSize) {
+                    const scaleFactor = danmakuContainer.node().offsetHeight / assResolution.h;
+                    el.style.fontSize = `${d.styles.fontSize * scaleFactor}px`;
+                }
+
+                const isStatic = d.styles.pos || (d.styles.alignment >= 4 && d.styles.alignment <= 9);
+
+                if (isStatic) {
+                    // Logic for static danmaku
+                    if (d.styles.pos) {
+                        const { x, y } = d.styles.pos;
+                        el.style.left = `${x / assResolution.w * 100}%`;
+                        el.style.top = `${y / assResolution.h * 100}%`;
+                        const alignmentTransforms = { 1: 'translate(0%, -100%)', 2: 'translate(-50%, -100%)', 3: 'translate(-100%, -100%)', 4: 'translate(0%, -50%)', 5: 'translate(-50%, -50%)', 6: 'translate(-100%, -50%)', 7: 'translate(0%, 0%)', 8: 'translate(-50%, 0%)', 9: 'translate(-100%, 0%)' };
+                        el.style.transform = alignmentTransforms[d.styles.alignment] || 'translate(-50%, -50%)';
+                    } else {
+                        const aligns = { 7: { top: '0', left: '0%', transform: 'translate(0, 0)' }, 8: { top: '0', left: '50%', transform: 'translateX(-50%)' }, 9: { top: '0', left: '100%', transform: 'translateX(-100%)' }, 4: { top: '50%', left: '0%', transform: 'translateY(-50%)' }, 5: { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }, 6: { top: '50%', left: '100%', transform: 'translate(-100%, -50%)' } };
+                        Object.assign(el.style, aligns[d.styles.alignment]);
+                    }
+                } else {
+                    // Logic for moving danmaku
+                    let targetTrack = -1;
+                    for (let i = 0; i < totalTracks; i++) {
+                        if (trackStatus[i] <= currentTime) {
+                            targetTrack = i;
+                            break;
+                        }
+                    }
+                    if (targetTrack === -1) targetTrack = Math.floor(Math.random() * totalTracks);
+                    trackStatus[targetTrack] = currentTime + TRACK_OCCUPANCY_THRESHOLD;
+
+                    el.style.top = `${targetTrack * trackHeight}px`;
+                    danmakuContainer.node().appendChild(el); // Must append to measure width
+                    
+                    const containerWidth = danmakuContainer.node().offsetWidth;
+                    const elWidth = el.offsetWidth;
+
+                    // Interpolate position
+                    const duration = MOVE_DANMAKU_DURATION;
+                    const timeElapsed = currentTime - d.startTime;
+                    const progress = Math.min(Math.max(timeElapsed / duration, 0), 1);
+                    
+                    const startX = containerWidth;
+                    const endX = -elWidth;
+                    const currentX = lerp(startX, endX, progress);
+
+                    el.style.transform = `translateX(${currentX}px)`;
+                }
+
+                if (!el.parentNode) {
+                    danmakuContainer.node().appendChild(el);
+                }
+            });
+        }
+        
+        // --- Python-Callable Functions ---
+        
+        window.renderFrame = function(time) {
+            // 1. Find bracketing keyframes
+            let nextIndex = keyframes.findIndex(kf => kf.time >= time);
+            if (nextIndex === -1) nextIndex = keyframes.length - 1; // Hold last frame
+            if (nextIndex === 0) nextIndex = 1;
+            
+            const kfNext = keyframes[nextIndex];
+            const kfPrev = keyframes[nextIndex - 1];
+            
+            if (!kfPrev || !kfNext) {
+                 console.error("Could not find keyframes for time:", time);
+                 return;
+            }
+
+            // 2. Calculate interpolation factor
+            const t = (time - kfPrev.time) / (kfNext.time - kfPrev.time);
+            
+            // 3. Create interpolated frame data
+            const prevDataMap = new Map(kfPrev.data.map(d => [d.content, d]));
+            const allContent = new Set([...kfPrev.data.map(d => d.content), ...kfNext.data.map(d => d.content)]);
+            
+            let interpolatedData = [];
+            for(const content of allContent) {
+                const prev = prevDataMap.get(content) || { content, count: 0, rank: maxN + 5 };
+                const nextDataPoint = kfNext.data.find(d => d.content === content);
+                if (!nextDataPoint) continue; // Item has disappeared completely
+                
+                interpolatedData.push({
+                    content: content,
+                    count: lerp(prev.count, nextDataPoint.count, t),
+                    rank: lerp(prev.rank, nextDataPoint.rank, t)
+                });
+            }
+            
+            interpolatedData.sort((a,b) => a.rank - b.rank);
+            
+            const interpolatedKeyframe = {
+                time: time,
+                data: interpolatedData
+            };
+            
+            // 4. Render the chart and danmaku
+            updateChart(interpolatedKeyframe);
+            renderDanmakuAtTime(time);
+        };
+
+        window.initialize = async function(statsAssText, danmakuAssText, config) {
+            return new Promise((resolve, reject) => {
+                try {
+                    n = config.numBars;
+                    setupDOM(config.width, config.height);
+
+                    // Process Stats ASS for keyframes
+                    const statsData = parseAssFile(statsAssText).map(d => ({ time: d.startTime, content: d.content }))
+                                                     .sort((a, b) => a.time - b.time);
+                    
+                    // Process Danmaku ASS for display
+                    const danmakuResult = parseAssForDisplay(danmakuAssText);
+                    assResolution = danmakuResult.resolution;
+                    danmakuData = danmakuResult.danmaku;
+
+                    if (statsData.length === 0) {
+                        reject("No data found in statistics ASS file.");
+                        return;
+                    }
+
+                    // Generate Keyframes (synchronously for simplicity in this context)
+                    const maxTime = statsData[statsData.length - 1].time + 5;
+                    const counts = new Map();
+                    let dataIndex = 0;
+                    for (let currentTime = -0.01; currentTime <= maxTime; currentTime += timeStep) {
+                        while (dataIndex < statsData.length && statsData[dataIndex].time <= currentTime) {
+                            const d = statsData[dataIndex];
+                            counts.set(d.content, (counts.get(d.content) || 0) + 1);
+                            dataIndex++;
+                        }
+                        let frameData = Array.from(counts, ([content, count]) => ({ content, count }));
+                        frameData.sort((a, b) => b.count - a.count);
+                        
+                        const rankMap = new Map(frameData.map((d, i) => [d.content, i]));
+
+                        frameData = frameData.slice(0, maxN + 5); // Keep a few extra for smooth transitions from off-screen
+                        frameData.forEach(d => d.rank = rankMap.get(d.content));
+                        keyframes.push({ time: currentTime, data: frameData });
+                    }
+                    resolve({ duration: maxTime });
+                } catch (error) {
+                    reject(error.toString());
+                }
+            });
+        };
+
+        // --- Data Parsing Functions (from original file) ---
+        function parseAssTime(timeStr) {
+            const parts = timeStr.split(/[:.]/);
+            return (parseInt(parts[0]||0)*3600 + parseInt(parts[1]||0)*60 + parseInt(parts[2]||0) + parseInt(parts[3]||0)/100);
+        }
+        function parseAssFile(text) {
+            const lines = text.split('\n');
+            const data = [];
+            const regex = /^Dialogue:\s*[^,]*?,([^,]+?),([^,]+?),[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,(.*)/;
+            for (const line of lines) {
+                const match = line.match(regex);
+                if (match) {
+                    let content = match[3].replace(/{[^}]*}/g, '').trim();
+                    if (content) {
+                        data.push({ startTime: parseAssTime(match[1]), endTime: parseAssTime(match[2]), content });
+                    }
+                }
+            }
+            return data;
+        }
+        function getAssResolution(text) {
+            const defaultResolution = { w: 1920, h: 1080 };
+            const matchX = text.match(/PlayResX:\s*(\d+)/);
+            const matchY = text.match(/PlayResY:\s*(\d+)/);
+            return (matchX && matchY) ? { w: parseInt(matchX[1]), h: parseInt(matchY[1]) } : defaultResolution;
+        }
+        function parseAssColor(assColor) {
+            if (!assColor || !assColor.includes('&H')) return '#FFFFFF';
+            const bgr = assColor.replace(/&H|&/g, '').padStart(6, '0');
+            return `#${bgr.substring(4, 6)}${bgr.substring(2, 4)}${bgr.substring(0, 2)}`.toUpperCase();
+        }
+        function parseAdvancedAssDialogue(dialogueLine) {
+            const regex = /^Dialogue:\s*[^,]*?,([^,]+?),([^,]+?),[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,(.*)/;
+            const match = dialogueLine.match(regex);
+            if (!match) return null;
+            const startTime = parseAssTime(match[1]);
+            const endTime = parseAssTime(match[2]);
+            if (endTime <= startTime) return null;
+            const rawText = match[3];
+            const styles = { move: null, color: '#FFFFFF', fontSize: 38, alignment: 2, pos: null };
+            let cleanText = rawText.replace(/{[^}]*}/g, '').trim();
+            const tagBlock = rawText.match(/{([^}]+)}/);
+            if (tagBlock) {
+                const tagRegex = /\\([a-zA-Z]+)([^\\\n]*)/g;
+                let tagMatch;
+                while ((tagMatch = tagRegex.exec(tagBlock[1])) !== null) {
+                    const tagName = tagMatch[1].toLowerCase();
+                    const tagValue = tagMatch[2].replace(/[()]/g, '');
+                    switch (tagName) {
+                        case 'c': case '1c': styles.color = parseAssColor(tagValue); break;
+                        case 'fs': styles.fontSize = parseInt(tagValue); break;
+                        case 'an': styles.alignment = parseInt(tagValue); break;
+                        case 'pos': const posCoords = tagValue.split(',').map(parseFloat); if (posCoords.length >= 2) styles.pos = { x: posCoords[0], y: posCoords[1] }; break;
+                    }
+                }
+            }
+            return { startTime, endTime, text: cleanText, styles };
+        }
+        function parseAssForDisplay(text) {
+            const resolution = getAssResolution(text);
+            const danmaku = text.split('\n').map(line => line.startsWith('Dialogue:') ? parseAdvancedAssDialogue(line) : null).filter(p => p && p.text);
+            return { resolution, danmaku: danmaku.sort((a,b) => a.startTime - b.startTime) };
+        }
+    </script>
+</body>
+</html>

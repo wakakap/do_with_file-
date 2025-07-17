@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NICONICO Comments Race</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Electrolize&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --dark-bg: #0d0d21;
+            --light-text: #e0e0e0;
+            --glow-color-primary: #00aaff;
+            --glow-color-secondary: #ff00ff;
+        }
+
+        body {
+            font-family: 'Electrolize', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--dark-bg);
+            color: var(--light-text);
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 {
+            color: #fff;
+            text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px var(--glow-color-primary), 0 0 35px var(--glow-color-primary);
+            position: absolute;
+            top: 0px;
+        }
+        
+        #loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: var(--light-text);
+            font-size: 20px;
+            border-radius: 10px;
+            z-index: 100;
+            display: none;
+        }
+
+        .hover-trigger-area {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 20px; /* 顶部20像素高的触发区域 */
+                z-index: 30; /* 需要比 controls 的 z-index 高 */
+            }
+
+        .controls {
+            margin: 0; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background-color: rgba(0,0,0,0.3);
+            padding: 20px 30px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 170, 255, 0.4);
+            box-shadow: 0 0 15px rgba(0, 170, 255, 0.2);
+            position: absolute;
+            top: 0; 
+            left: 50%; 
+            z-index: 200;
+            transform: translate(-50%, -100%); 
+            transition: transform 0.4s ease-in-out; 
+        }
+
+        .hover-trigger-area:hover ~ .controls,
+        .controls:hover 
+        {
+            transform: translate(-50%, 10px); 
+        }
+        
+        .control-row { display: flex; justify-content: space-around; width: 100%; align-items: center; flex-wrap: wrap; gap: 10px;}
+        .control-group { display: flex; align-items: center; gap: 10px; justify-content: center; }
+        #file-input-label, #video-file-label, #music-file-label { padding: 8px 16px; cursor: pointer; background-color: transparent; color: var(--light-text); border: 1px solid var(--glow-color-primary); border-radius: 5px; transition: all 0.3s; box-shadow: 0 0 5px var(--glow-color-primary) inset; white-space: nowrap; }
+        #file-input-label:hover, #video-file-label:hover, #music-file-label:hover { background-color: var(--glow-color-primary); color: var(--dark-bg); box-shadow: 0 0 10px var(--glow-color-primary); }
+        input[type="file"] { display: none; }
+        button { font-family: 'Electrolize', sans-serif; padding: 8px 18px; font-size: 16px; cursor: pointer; background-color: var(--glow-color-secondary); color: #fff; border: none; border-radius: 5px; transition: all 0.3s; text-shadow: 0 0 5px #fff; box-shadow: 0 0 8px var(--glow-color-secondary), 0 0 15px var(--glow-color-secondary) inset; }
+        button:hover { box-shadow: 0 0 15px var(--glow-color-secondary), 0 0 25px var(--glow-color-secondary) inset; }
+        button:disabled { background-color: #555; color: #888; cursor: not-allowed; box-shadow: none; text-shadow: none; }
+        input[type="range"] { -webkit-appearance: none; width: 180px; background: transparent; }
+        input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: var(--glow-color-primary); border-radius: 5px; box-shadow: 0 0 5px var(--glow-color-primary); }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #fff; cursor: pointer; margin-top: -7px; box-shadow: 0 0 10px #fff, 0 0 20px var(--glow-color-primary); }
+        #chart-container { width: 90vw; max-width: calc(90vh * (16 / 9)); aspect-ratio: 16 / 9; background-color: rgba(0,0,0,0.3); box-shadow: 0 0 25px rgba(0, 170, 255, 0.3); border: 1px solid rgba(0, 170, 255, 0.4); border-radius: 8px; padding: 20px; position: relative; box-sizing: border-box; }
+        svg { width: 100%; height: 100%; }
+        .bar-group { transition: filter 0.4s linear; }
+        .bar-label, .bar-value { font-size: 15px; font-weight: bold;fill: #ff00c8; text-shadow: 0 0 5px #fff, 0 0 15px #fff, 0 0 25px #fff,0 0 5px var(--glow-color-primary); }
+        .bar-label { text-anchor: start; }
+        .bar-value { text-anchor: end; }
+        .x-axis path.domain { stroke-width: 0.5px; stroke: rgba(0, 170, 255, 0.5); }
+        .x-axis .tick line { stroke-width: 0.5px; stroke: rgba(0, 170, 255, 0.3); }
+        .x-axis .tick text { fill: rgba(0, 170, 255, 0.8); font-size: 12px; text-shadow: 0 0 3px rgba(0, 170, 255, 0.5); }
+        .time-label { position: absolute; bottom: 30px; right: 40px; font-size: 48px; font-weight: bold; color: rgba(255,255,255,0.6); z-index: 10; text-shadow: 0 0 5px #fff, 0 0 15px var(--glow-color-primary); }
+        #video-container { 
+            position: absolute; 
+            bottom: 20px; 
+            right: 220px; 
+            width: calc(100% / 3); 
+            height: calc(100% * 2 / 3); 
+            z-index: 15; 
+            background-color: rgba(0,0,0,0.1); 
+            pointer-events: none; 
+            overflow: visible; 
+        }
+        #video-player { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            opacity: 0; 
+            transition: opacity 0.5s; 
+        }
+        #video-overlay-text {
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 88px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 5px #fff, 0 0 12px var(--glow-color-secondary), 0 0 25px var(--glow-color-secondary);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            text-align: center;
+            white-space: nowrap;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        #video-overlay-text.show {
+            animation: fadeInOut 1s ease-in-out forwards;
+        }
+
+        #word-cloud-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100;
+            background-color: rgba(13, 13, 33, 0.95);
+            display: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #word-cloud-svg text {
+            font-family: 'Electrolize', sans-serif;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        #word-cloud-svg text:hover {
+            opacity: 0.7;
+        }
+
+        #danmaku-container {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 80%;
+            height: 80%;
+            z-index: 12;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .danmaku-comment {
+            position: absolute;
+            color: white;
+            opacity: 0.6;
+            font-size: 22px;
+            font-weight: bold;
+            text-shadow: 0 0 2px rgba(0,0,0,0.8);
+            white-space: nowrap;
+            will-change: transform;
+            /* ▼▼▼ [MODIFIED] Start position is now controlled by transform ▼▼▼ */
+            transform: translateX(100vw); /* A very large value to ensure it's offscreen initially */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>NICONICO Comments Race</h1>
+    <div id="loading-indicator">正在生成关键帧...</div>
+    <div class="hover-trigger-area"></div>
+    <div class="controls">
+        <div class="control-row">
+             <div class="control-group">
+                <label id="file-input-label" for="file-input">1. 选择 .ass 文件</label>
+                <input type="file" id="file-input" accept=".ass">
+                <label id="video-file-label" for="video-file-input">2. 选择视频文件</label>
+                <input type="file" id="video-file-input" accept="video/*">
+                <label id="music-file-label" for="music-file-input" style="border-color: #00aaff;">3. 选择音乐文件</label>
+                <input type="file" id="music-file-input" accept="audio/*" multiple>
+                <button id="play-pause-btn" disabled>播放</button>
+            </div>
+        </div>
+        <div class="control-row">
+             <div class="control-group">
+                <label for="n-slider">条目数:</label>
+                <input type="range" id="n-slider" value="12" min="5" max="40" step="1">
+                <span id="n-value">12</span>
+            </div>
+            <div class="control-group">
+                <label for="speed-slider">速度倍率:</label>
+                <input type="range" id="speed-slider" value="1" min="0.2" max="16" step="0.1">
+                <span id="speed-value">1.0x</span>
+            </div>
+        </div>
+         <div class="control-row">
+            <div class="control-group">
+                <label for="time-slider">时间轴:</label>
+                <input type="range" id="time-slider" value="0" min="0" disabled>
+            </div>
+        </div>
+    </div>
+
+    <div id="chart-container">
+        <div id="time-display" class="time-label">00:00</div>
+        <svg id="chart-svg"></svg>
+        <div id="danmaku-container"></div>
+        <div id="video-container">
+            <video id="video-player"></video>
+            <div id="video-overlay-text"></div> 
+        </div>
+        <div id="word-cloud-container">
+            <svg id="word-cloud-svg"></svg>
+        </div>
+    </div>
+    <audio id="music-player"></audio>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/jasondavies/d3-cloud@v1.2.7/build/d3.layout.cloud.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- 全局变量和配置 ---
+            const margin = { top: 20, right: 150, bottom: 40, left: 20 };
+            const svg = d3.select("#chart-svg");
+            const timeDisplay = d3.select("#time-display");
+            
+            let chartWidth, chartHeight;
+            let animationTimer;
+            let keyframes = [];
+            let allParsedData = []; 
+            let danmakuData = []; 
+            let nextDanmakuIndex = 0; 
+            let activeDanmakuAnimations = []; 
+
+            let currentKeyframeIndex = 0;
+            let isPlaying = false;
+
+            let n = 12;
+            const maxN = 40;
+            const timeStep = 0.5;
+            let playbackSpeed = 500; 
+            const rankChangeAnimationDuration = 600;
+            const VIDEO_LENGTH = 2;
+
+            const fileInput = document.getElementById('file-input');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const timeSlider = document.getElementById('time-slider');
+            const speedSlider = document.getElementById('speed-slider');
+            const speedValue = document.getElementById('speed-value');
+            const nSlider = document.getElementById('n-slider');
+            const nValue = document.getElementById('n-value');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const wordCloudContainer = document.getElementById('word-cloud-container');
+            const danmakuContainer = document.getElementById('danmaku-container'); 
+            const musicFileInput = document.getElementById('music-file-input');
+            const musicPlayerElement = document.getElementById('music-player');
+            const musicFileLabel = document.getElementById('music-file-label');
+            let musicPlaylist = [];
+            let currentMusicIndex = 0;
+            
+            const videoFileInput = document.getElementById('video-file-input');
+            const videoPlayerElement = document.getElementById('video-player');
+            let videoSrcUrl = null;
+            const videoPlayer = {
+                element: videoPlayerElement,
+                currentReason: null 
+            };
+
+            const colorScale = d3.scaleSequential(d3.interpolateCool).domain([maxN, 0]);
+
+            // --- 文件选择与处理流程 ---
+            videoFileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                if (videoSrcUrl) URL.revokeObjectURL(videoSrcUrl);
+                videoSrcUrl = URL.createObjectURL(file);
+                videoPlayerElement.src = videoSrcUrl;
+                document.getElementById('video-file-label').style.borderColor = '#00ff00';
+            });
+            musicFileInput.addEventListener('change', (event) => {
+                const files = event.target.files;
+                if (!files || files.length === 0) return;
+                musicPlayerElement.pause();
+                if (musicPlayerElement.src && musicPlayerElement.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(musicPlayerElement.src);
+                }
+                musicPlayerElement.src = '';
+                musicPlaylist = Array.from(files).filter(file => file.type.startsWith('audio/'));
+                if (musicPlaylist.length === 0) {
+                    alert("您选择的文件夹中没有找到有效的音乐文件。");
+                    musicFileLabel.style.borderColor = '#ff0000';
+                    return;
+                }
+                currentMusicIndex = 0;
+                musicFileLabel.style.borderColor = '#00ff00';
+            });
+
+            // 专门的、可靠的音乐播放函数
+            function playSongAtIndex(index) {
+                if (!musicPlaylist || musicPlaylist.length === 0 || index >= musicPlaylist.length) {
+                    return;
+                }
+                const songFile = musicPlaylist[index];
+                const songUrl = URL.createObjectURL(songFile);
+                if (musicPlayerElement.src && musicPlayerElement.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(musicPlayerElement.src);
+                }
+                musicPlayerElement.src = songUrl;
+                const playPromise = musicPlayerElement.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error(`播放歌曲 '${songFile.name}' 失败!`, error);
+                        if (error.name === 'NotSupportedError') {
+                            alert(`错误：浏览器不支持播放文件 '${songFile.name}'。该文件可能已损坏或格式不兼容。`);
+                        } else {
+                            alert(`播放歌曲 '${songFile.name}' 时发生未知错误。`);
+                        }
+                    });
+                }
+            }
+
+            // 'ended' 事件监听器，用于循环播放
+            musicPlayerElement.addEventListener('ended', () => {
+                if (!isPlaying) return;
+                currentMusicIndex = (currentMusicIndex + 1) % musicPlaylist.length;
+                playSongAtIndex(currentMusicIndex);
+            });
+
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                playPauseBtn.disabled = true;
+                loadingIndicator.textContent = '正在解析弹幕文件...';
+                loadingIndicator.style.display = 'block';
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const rawDanmakuData = parseAssFile(e.target.result);
+                    danmakuData = rawDanmakuData; 
+
+                    allParsedData = rawDanmakuData.map(d => ({ time: d.startTime, content: d.content }))
+                                                 .sort((a, b) => a.time - b.time);
+
+                    if (allParsedData.length > 0) {
+                        loadingIndicator.textContent = '正在生成关键帧...';
+                        createKeyframesAsync(allParsedData, (generatedKeyframes) => {
+                            loadingIndicator.textContent = '正在分析视频触发点...';
+                            setTimeout(() => {
+                                precomputeVideoTriggersAsync(generatedKeyframes, (finalKeyframes) => {
+                                    keyframes = finalKeyframes;
+                                    initializeChart();
+                                    loadingIndicator.style.display = 'none';
+                                    document.getElementById('file-input-label').style.borderColor = '#00ff00';
+                                });
+                            }, 50);
+                        });
+                    } else {
+                        alert("未能从文件中解析出有效弹幕数据。");
+                        loadingIndicator.style.display = 'none';
+                    }
+                };
+                reader.readAsText(file);
+            });
+            
+            // --- 数据处理函数 ---
+            function parseAssFile(text) {
+                const lines = text.split('\n');
+                const data = [];
+                const regex = /^Dialogue:\s*[^,]*?,([^,]+?),([^,]+?),[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,[^,]*?,(.*)/;
+                for (const line of lines) {
+                    const match = line.match(regex);
+                    if (match) {
+                        const startStr = match[1];
+                        const endStr = match[2];
+                        let content = match[3];
+                        
+                        content = content
+                            .replace(/{[^}]*}/g, '')
+                            // .replace(/[!.?@^_`~，。？！—……、〝〞﹁﹂﹃﹄]/g, '')
+                            .trim();
+
+                        if (content) {
+                            const startTime = parseAssTime(startStr);
+                            const endTime = parseAssTime(endStr);
+                            if (endTime > startTime) {
+                                data.push({ startTime, endTime, content });
+                            }
+                        }
+                    }
+                }
+                return data.sort((a, b) => a.startTime - b.startTime);
+            }
+
+            function parseAssTime(timeStr) {
+                const parts = timeStr.split(/[:.]/);
+                return (parseInt(parts[0]||0)*3600 + parseInt(parts[1]||0)*60 + parseInt(parts[2]||0) + parseInt(parts[3]||0)/100);
+            }
+            
+            function createKeyframesAsync(data, callback) {
+                const frames = [];
+                if (data.length === 0) {
+                    callback(frames);
+                    return;
+                }
+                const maxTime = data[data.length - 1].time + 5;
+                let dataIndex = 0;
+                const counts = new Map();
+                let currentTime = -0.01;
+                const CHUNK_SIZE = 200; 
+
+                function processChunk() {
+                    let processedInChunk = 0;
+                    while (currentTime <= maxTime && processedInChunk < CHUNK_SIZE) {
+                        while (dataIndex < data.length && data[dataIndex].time <= currentTime) {
+                            const d = data[dataIndex];
+                            counts.set(d.content, (counts.get(d.content) || 0) + 1);
+                            dataIndex++;
+                        }
+                        
+                        let frameData = Array.from(counts, ([content, count]) => ({ content, count }));
+                        frameData.sort((a, b) => b.count - a.count);
+                        frameData = frameData.slice(0, maxN);
+                        frameData.forEach((d, i) => d.rank = i);
+                        frames.push({ time: currentTime, data: frameData });
+
+                        currentTime += timeStep;
+                        processedInChunk++;
+                    }
+                    if (currentTime <= maxTime) {
+                        setTimeout(processChunk, 0);
+                    } else {
+                        callback(frames);
+                    }
+                }
+                processChunk();
+            }
+
+            function precomputeVideoTriggersAsync(allFrames, callback) {
+                const PREDICT_SECONDS = 2.5;
+                const LOOKBACK_SECONDS = 3;
+                const COUNT_THRESHOLD = 10;
+                const predictSteps = Math.round(PREDICT_SECONDS / timeStep);
+                const lookbackSteps = Math.round(LOOKBACK_SECONDS / timeStep);
+                let currentIndex = 0;
+                const CHUNK_SIZE = 500;
+
+                function processChunk() {
+                    let processedInChunk = 0;
+                    while(currentIndex < allFrames.length && processedInChunk < CHUNK_SIZE) {
+                        const futureIndex = currentIndex + predictSteps;
+                        const lookbackIndex = futureIndex - lookbackSteps;
+
+                        if (futureIndex < allFrames.length && lookbackIndex >= 0) {
+                            const futureFrame = allFrames[futureIndex];
+                            const pastFrame = allFrames[lookbackIndex];
+                            const pastCounts = new Map(pastFrame.data.map(d => [d.content, d.count]));
+                            const futureVisibleData = futureFrame.data.slice(0, n);
+
+                            for (const bar of futureVisibleData) {
+                                const pastCount = pastCounts.get(bar.content) || 0;
+                                if (bar.count - pastCount > COUNT_THRESHOLD) {
+                                    const triggerTime = allFrames[currentIndex].time;
+                                    const startTime = Math.max(0, triggerTime);
+                                    
+                                    allFrames[currentIndex].videoTrigger = { 
+                                        startTime: startTime, 
+                                        reason: bar.content
+                                    };
+                                    break; 
+                                }
+                            }
+                        }
+                        currentIndex++;
+                        processedInChunk++;
+                    }
+                    if (currentIndex < allFrames.length) {
+                        setTimeout(processChunk, 0);
+                    } else {
+                        callback(allFrames);
+                    }
+                }
+                processChunk();
+            }
+
+            // --- 图表初始化和更新 ---
+            function initializeChart() {
+                if (animationTimer) clearTimeout(animationTimer);
+                isPlaying = false;
+                currentKeyframeIndex = 0;
+                
+                clearDanmaku(); 
+                nextDanmakuIndex = 0; 
+
+                const container = document.getElementById('chart-container');
+                const rect = container.getBoundingClientRect();
+                chartWidth = rect.width - margin.left - margin.right;
+                chartHeight = rect.height - margin.top - margin.bottom;
+                
+                svg.selectAll("*").remove(); 
+                const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+                g.append("g").attr("class", "x-axis");
+
+                playPauseBtn.disabled = false;
+                timeSlider.disabled = false;
+                timeSlider.max = keyframes.length - 1;
+                timeSlider.value = 0;
+
+                updateChart(keyframes[0], null, false);
+            }
+            
+            function updateChart(keyframe, previousKeyframe, withAnimation = true) {
+                if (!keyframe) return;
+                
+                const duration = withAnimation ? rankChangeAnimationDuration : 0;
+                const g = svg.select("g");
+                const transition = svg.transition().duration(duration).ease(d3.easeLinear);
+                
+                const displayData = keyframe.data.slice(0, n);
+                
+                const y = d3.scaleBand()
+                    .domain(displayData.map(d => d.content))
+                    .range([0, chartHeight])
+                    .padding(0.2);
+                
+                const x = d3.scaleLinear()
+                    .domain([0, d3.max(displayData, d => d.count) || 10])
+                    .range([0, chartWidth]);
+
+                const oldRankMap = new Map();
+                if (previousKeyframe) {
+                    previousKeyframe.data.forEach(d => {
+                        oldRankMap.set(d.content, d.rank);
+                    });
+                }
+                
+                const bars = g.selectAll("g.bar-group").data(displayData, d => d.content);
+                const enterGroups = bars.enter().append("g").attr("class", "bar-group")
+                    .attr("transform", `translate(0, ${chartHeight})`)
+                    .style("filter", d => `drop-shadow(0 0 4px ${colorScale(d.rank)})`);
+
+                enterGroups.append("rect").attr("height", y.bandwidth()).attr("width", 0).attr("rx", () => Math.min(20, y.bandwidth() / 2)).attr("fill", d => colorScale(d.rank));
+                enterGroups.append("text").attr("class", "bar-label").attr("x", 5).attr("y", y.bandwidth() / 2).attr("dy", "0.35em").text(d => d.content);
+                enterGroups.append("text").attr("class", "bar-value").attr("x", 0).attr("y", y.bandwidth() / 2).attr("dy", "0.35em").text(d => d.count);
+                
+                const allGroups = enterGroups.merge(bars);
+
+                allGroups.transition(transition)
+                    .style("opacity", 1)
+                    .attrTween("transform", function(d) {
+                        const currentTransform = d3.select(this).attr("transform") || `translate(0, ${chartHeight})`;
+                        const match = /translate\((.*?),(.*?)\)/.exec(currentTransform);
+                        const startY = match ? parseFloat(match[2]) : chartHeight;
+                        const endY = y(d.content);
+                        const yInterpolator = d3.interpolate(startY, endY);
+                        
+                        const oldRank = oldRankMap.has(d.content) ? oldRankMap.get(d.content) : Infinity;
+                        const newRank = d.rank;
+
+                        if (newRank < oldRank) {
+                            const curveAmplitude = x(d.count) * 0.3; 
+                            return function(t) {
+                                let curveFactor;
+                                if (t < 0.5) {
+                                    const p = t * 2;
+                                    curveFactor = d3.easeCubicOut(p);
+                                } else {
+                                    const p = (t - 0.5) * 2;
+                                    curveFactor = 1 - d3.easeCubicOut(p);
+                                }
+                                const currentX = curveAmplitude * curveFactor;
+                                const currentY = yInterpolator(t);
+                                return `translate(${currentX},${currentY})`;
+                            };
+                        } else {
+                            return function(t) {
+                                const currentY = yInterpolator(t);
+                                return `translate(0,${currentY})`;
+                            };
+                        }
+                    })
+                    .style("filter", d => `drop-shadow(0 0 4px ${colorScale(d.rank)})`);
+                
+                allGroups.select("rect").transition(transition).attr("height", y.bandwidth()).attr("rx", () => Math.min(20, y.bandwidth() / 2)).attr("width", d => x(d.count)).attr("fill", d => colorScale(d.rank));
+                allGroups.selectAll("text").transition(transition).attr("y", y.bandwidth() / 2);
+                allGroups.select(".bar-value").transition(transition).attr("x", function(d) {
+                        const positionA = x(d.count);
+                        const labelElement = this.parentNode.querySelector('.bar-label');
+                        const labelWidth = labelElement ? labelElement.getBBox().width : 0;
+                        const labelPadding = 15;
+                        const positionB = 5 + labelWidth + labelPadding;
+                        return Math.max(positionA, positionB);
+                    }).tween("text", function(d) {
+                        const i = d3.interpolate(parseInt(this.textContent) || 0, d.count);
+                        return function(t) { this.textContent = Math.round(i(t)); };
+                    });
+                
+                bars.exit().transition(transition).attr("transform", `translate(0, ${chartHeight})`).style("opacity", 0).remove();
+                g.select(".x-axis").attr("transform", `translate(0,${chartHeight})`).transition(transition).call(d3.axisBottom(x).ticks(5).tickSize(-chartHeight));
+                const displayTime = Math.max(0, keyframe.time);
+                const minutes = Math.floor(displayTime / 60);
+                const seconds = Math.floor(displayTime % 60);
+                timeDisplay.text(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+            }
+            
+            // --- 动画与控制逻辑 ---
+            function runAnimation() {
+                if (currentKeyframeIndex >= keyframes.length) {
+                    showWordCloud(); 
+                    pauseAnimation();
+                    return;
+                }
+                if (!isPlaying) return;
+                
+                const currentFrame = keyframes[currentKeyframeIndex];
+                if (!currentFrame) {
+                    pauseAnimation();
+                    return;
+                }
+                
+                updateDanmakuOnPlayback(currentFrame.time);
+
+                if (videoSrcUrl && currentFrame.videoTrigger) {
+                    const { startTime, reason } = currentFrame.videoTrigger;
+                    playVideoSegment(startTime, reason);
+                }
+
+                const previousFrame = keyframes[currentKeyframeIndex - 1];
+                let delay = playbackSpeed;
+                const nextFrame = keyframes[currentKeyframeIndex + 1];
+
+                if (nextFrame) {
+                    let rankChanged = false;
+                    const currentVisibleData = currentFrame.data.slice(0, n);
+                    const currentRankMap = new Map();
+                    currentVisibleData.forEach(d => { currentRankMap.set(d.content, d.rank); });
+                    const nextVisibleData = nextFrame.data.slice(0, n);
+                    for (const nextBar of nextVisibleData) {
+                        if (!currentRankMap.has(nextBar.content) || currentRankMap.get(nextBar.content) !== nextBar.rank) {
+                            rankChanged = true;
+                            break;
+                        }
+                    }
+                    if (rankChanged) {
+                        delay = Math.max(playbackSpeed, rankChangeAnimationDuration);
+                    }
+                }
+
+                updateChart(currentFrame, previousFrame, true);
+                
+                timeSlider.value = currentKeyframeIndex;
+                currentKeyframeIndex++;
+                
+                animationTimer = setTimeout(runAnimation, delay);
+            }
+
+            function updateDanmakuOnPlayback(currentTime) {
+                while (danmakuData[nextDanmakuIndex] && danmakuData[nextDanmakuIndex].startTime <= currentTime) {
+                    launchDanmaku(danmakuData[nextDanmakuIndex]);
+                    nextDanmakuIndex++;
+                }
+            }
+            
+            function rebuildDanmakuAtTime(currentTime) {
+                clearDanmaku();
+                nextDanmakuIndex = danmakuData.findIndex(d => d.startTime > currentTime);
+                if (nextDanmakuIndex === -1) nextDanmakuIndex = danmakuData.length;
+
+                for (let i = 0; i < nextDanmakuIndex; i++) {
+                    const d = danmakuData[i];
+                    if (currentTime >= d.startTime && currentTime < d.endTime) {
+                        // ▼▼▼ [MODIFIED] Pass true for isScrubbing ▼▼▼
+                        launchDanmaku(d, currentTime, true); 
+                    }
+                }
+            }
+            
+            // ▼▼▼ [MODIFIED] launchDanmaku now handles scrubbing state ▼▼▼
+            function launchDanmaku(d, optionalCurrentTime = null, isScrubbing = false) {
+                const el = document.createElement('div');
+                el.classList.add('danmaku-comment');
+                el.textContent = d.content;
+                el.style.top = `${Math.random() * 90}%`;
+                
+                danmakuContainer.appendChild(el);
+
+                const containerWidth = danmakuContainer.offsetWidth;
+                const elWidth = el.offsetWidth;
+                const travelDistance = containerWidth + elWidth;
+                const fullDuration = (d.endTime - d.startTime) * 1000;
+
+                const animation = el.animate([
+                    { transform: `translateX(${containerWidth}px)` },
+                    { transform: `translateX(-${elWidth}px)` }
+                ], {
+                    duration: fullDuration,
+                    easing: 'linear'
+                });
+
+                // Immediately apply the playback rate
+                animation.updatePlaybackRate(parseFloat(speedSlider.value));
+                
+                if (isScrubbing && optionalCurrentTime) {
+                    const elapsedTime = (optionalCurrentTime - d.startTime) * 1000;
+                    animation.currentTime = elapsedTime;
+                    animation.pause(); // The crucial step: pause after setting the time
+                } else {
+                    animation.play(); // Normal playback
+                }
+                
+                activeDanmakuAnimations.push(animation);
+                animation.onfinish = () => {
+                    el.remove();
+                    activeDanmakuAnimations = activeDanmakuAnimations.filter(a => a !== animation);
+                };
+            }
+
+            function clearDanmaku() {
+                activeDanmakuAnimations.forEach(anim => anim.cancel());
+                activeDanmakuAnimations = [];
+                danmakuContainer.innerHTML = '';
+            }
+
+            function playVideoSegment(startTime, reason) {
+                const overlayText = document.getElementById('video-overlay-text');
+                // 修改正则表达式，将括号内的内容放入一个捕获组 ()
+                let mainText = reason;
+                let splitText = "";
+
+                // 找到最后一个竖线
+                const lastPipeIndex = reason.lastIndexOf('|');
+
+                if (lastPipeIndex !== -1) {
+                    mainText = reason.slice(0, lastPipeIndex).trim();
+                    splitText = reason.slice(lastPipeIndex + 1).trim();
+                }
+
+                overlayText.innerHTML = `${mainText}<br>${splitText}`;
+                const randomRotation = Math.random() * 25;
+                overlayText.style.transform = `translate(-50%, -50%) rotate(${randomRotation}deg)`;
+                overlayText.classList.add('show');
+                setTimeout(() => {
+                    overlayText.classList.remove('show');
+                }, 1000);
+
+                if (reason === videoPlayer.currentReason) {
+                    return;
+                }
+                // 当视频第一次被触发播放时，检查并暂停背景音乐。
+                // 这是单向操作，之后将不再恢复音乐。
+                if (!musicPlayerElement.paused) {
+                    musicPlayerElement.pause();
+                }
+                videoPlayer.currentReason = reason;
+                videoPlayer.element.style.opacity = '1';
+                videoPlayer.element.currentTime = startTime;
+                videoPlayer.element.play();
+            }
+
+            function playAnimation() { 
+                isPlaying = true; 
+                playPauseBtn.textContent = "暂停"; 
+                // ▼▼▼ [MODIFIED] Explicitly play all active animations ▼▼▼
+                activeDanmakuAnimations.forEach(anim => anim.play()); 
+                // 如果音乐播放列表不为空，且播放器当前是暂停状态
+                if (musicPlaylist.length > 0 && musicPlayerElement.paused) {
+                    playSongAtIndex(currentMusicIndex);
+                }
+                runAnimation(); 
+            }
+            function pauseAnimation() { 
+                isPlaying = false; 
+                playPauseBtn.textContent = "播放"; 
+                clearTimeout(animationTimer);
+                // ▼▼▼ [MODIFIED] Explicitly pause all active animations ▼▼▼
+                activeDanmakuAnimations.forEach(anim => anim.pause());
+                musicPlayerElement.pause();
+                videoPlayer.element.pause();
+                videoPlayer.element.style.opacity = '0';
+                videoPlayer.currentReason = null; 
+            }
+
+            playPauseBtn.addEventListener('click', () => {
+                hideWordCloud();
+                if (keyframes.length === 0) {
+                    alert("请先选择一个 .ass 文件！");
+                    return;
+                }
+                if (!videoSrcUrl) {
+                    alert("请先选择一个视频文件！");
+                    return;
+                }
+                if (isPlaying) pauseAnimation(); else playAnimation();
+            });
+
+            timeSlider.addEventListener('input', () => {
+                hideWordCloud();
+                pauseAnimation();
+                currentKeyframeIndex = +timeSlider.value;
+                if(keyframes[currentKeyframeIndex]) {
+                    const newTime = keyframes[currentKeyframeIndex].time;
+                    updateChart(keyframes[currentKeyframeIndex], keyframes[currentKeyframeIndex - 1], false); 
+                    rebuildDanmakuAtTime(newTime);
+                }
+            });
+
+            speedSlider.addEventListener('input', (e) => {
+                const multiplier = parseFloat(e.target.value);
+                playbackSpeed = 500 / multiplier;
+                speedValue.textContent = multiplier.toFixed(1) + 'x';
+                
+                const rate = parseFloat(speedSlider.value);
+                activeDanmakuAnimations.forEach(anim => {
+                    anim.updatePlaybackRate(rate);
+                });
+            });
+
+            nSlider.addEventListener('input', (e) => {
+                n = +e.target.value;
+                nValue.textContent = n;
+                if (keyframes.length > 0) {
+                    pauseAnimation();
+                    updateChart(keyframes[currentKeyframeIndex], keyframes[currentKeyframeIndex - 1], false);
+                }
+            });
+
+            function showWordCloud() {
+                if (!allParsedData || allParsedData.length === 0) return;
+
+                const allWords = getFinalWordCounts(allParsedData);
+                const words = allWords.filter(d => d.size > 5);
+
+                if (words.length === 0) return;
+
+                const containerRect = document.getElementById('chart-container').getBoundingClientRect();
+                const layoutWidth = containerRect.width;
+                const layoutHeight = containerRect.height;
+
+                const fontSizeScale = d3.scaleSqrt()
+                    .domain(d3.extent(words, d => d.size))
+                    .range([15, 120]);
+
+                const layout = d3.layout.cloud()
+                    .size([layoutWidth, layoutHeight])
+                    .words(words)
+                    .padding(3)
+                    .rotate(() => (Math.random() > 0.7) ? 90 : 0)
+                    .font('Electrolize')
+                    .fontSize(d => fontSizeScale(d.size))
+                    .on("end", draw);
+
+                layout.start();
+
+                function draw(words) {
+                    const svg = d3.select("#word-cloud-svg")
+                        .attr("width", layout.size()[0])
+                        .attr("height", layout.size()[1]);
+                    
+                    svg.selectAll("*").remove();
+
+                    const g = svg.append("g")
+                        .attr("transform", `translate(${layout.size()[0] / 2},${layout.size()[1] / 2})`);
+
+                    g.selectAll("text")
+                        .data(words)
+                        .enter().append("text")
+                        .style("font-size", d => `${d.size}px`)
+                        .style("font-family", "Electrolize")
+                        .style("fill", (d, i) => d3.interpolateTurbo(Math.random()))
+                        .attr("text-anchor", "middle")
+                        .attr("transform", d => `translate(${d.x},${d.y})rotate(${d.rotate})`)
+                        .text(d => d.text)
+                        .style("text-shadow", "0 0 3px #fff");
+                }
+                
+                wordCloudContainer.style.display = 'flex';
+            }
+
+            function hideWordCloud() {
+                wordCloudContainer.style.display = 'none';
+                d3.select("#word-cloud-svg").selectAll("*").remove();
+            }
+            
+            window.addEventListener('resize', () => { 
+                if(keyframes.length > 0) { 
+                    const wasPlaying = isPlaying;
+                    pauseAnimation();
+                    initializeChart(); 
+                    if (keyframes[currentKeyframeIndex]) {
+                       rebuildDanmakuAtTime(keyframes[currentKeyframeIndex].time);
+                    }
+                    if (wasPlaying) {
+                       playAnimation();
+                    }
+                } 
+            });
+        });
+        
+        function getFinalWordCounts(data) {
+            const counts = new Map();
+            for (const item of data) {
+                counts.set(item.content, (counts.get(item.content) || 0) + 1);
+            }
+            return Array.from(counts, ([text, size]) => ({ text, size }));
+        }
+    </script>
+</body>
+</html>
