@@ -31,14 +31,14 @@
     + pip install getjump  https://pypi.org/project/getjump/
       + `jget https://shonenjumpplus.com/episode/xxxx` 适用于comic-action.com comic-days.com comic-earthstar.com comic-gardo.com comic-ogyaaa.com comic-seasons.com comic-trail.com comic-zenon.com comicborder.com feelweb.jp kuragebunch.com magcomi.com ourfeel.jp pocket.shonenmagazine.com shonenjumpplus.com www.sunday-webry.com tonarinoyj.jp viewer.heros-web.com
     + pip install cowado https://pypi.org/project/cowado/ 
-      + `cowado url` 适用于comic-walker.com
-  + BT:npx comic-walker KC_0010570000100011_E
+      + `cowado url` 适用于 comic-walker.com
+  + BT:
     + 设置：VPN:KILL SWITCH
     + qbittorent：高级-网络接口-VPN, 隐私-强制加密，匿名模式，速度限制。上传速度不能太低，否则没下载速度。
       + ~~盗版站：https://nyaa.si~~  ~~https://sukebei.nyaa.si~~ ~~e-hentai.org~~
       + ~~压制组：https://vcb-s.com/ https://nyaa.si/user/VCB-Studio~~
   + PT: 
-    + 之前用西北工业大学的蒲公英，现在基本很难了
+    + ~~之前用西北工业大学的蒲公英，现在基本很难了~~
 + AI
   + AI对比（免费用）：https://lmarena.ai/
   + AI训练语音：https://github.com/RVC-Boss/GPT-SoVITS
