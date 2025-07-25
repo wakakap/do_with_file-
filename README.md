@@ -15,10 +15,10 @@
 + 视频处理：
   + ffmpeg: 重点参数为`-crf 15`，越低质量越高，一般`21`可接受且体积小。ffmpeg的合并片段效果非常差，出现音画偏移，暂未解决办法，还是导入Pr处理。
     + 编码：`ffmpeg -i "1.mov" -c:v libx264 -crf 20 -preset veryfast -c:a aac -b:a 128k -y "2.mp4"`
-    + 截取：`ffmpeg -ss 0:30:00 -i "1.mp4" -t 600 -codec copy -y "2.mp4"`
+    + 截取：`ffmpeg -ss 0:00:00 -i "sum.mp4" -t 208 -codec copy -y "sum2.mp4"`
     + 截取+编码：`ffmpeg -ss 00:01:28 -i "1.webm" -t 20 -c:v libx264 -crf 20 -preset veryfast -c:a aac -b:a 128k -y "2.mp4"`
     + 加帧（最小蠕动感）：`ffmpeg -i "video.mp4" -vf "minterpolate=fps=60:mi_mode=blend:scd=1" "video60fps.mp4"`
-    + 加字幕（必须编码）：`ffmpeg -i "1.mp4" -vf "ass=aaa.ass" -c:a aac -b:a 128k "2.mp4"`
+    + 加字幕（必须编码）：`ffmpeg -i "video60fps.mp4" -vf "ass=jp_ch_reconstructed.ass" -c:a aac -b:a 128k "5.mp4"`
 + 图片处理：
   + 放大：Upscayl
 + 下载：
@@ -62,7 +62,8 @@
     + 聊天/文件传送：telegram
     + 直播/录制：OBS https://obsproject.com/
     + 音频通道控制：VB-CABLE https://vb-audio.com/Cable/
-    + 加载安装包：deamon tool lite https://www.daemon-tools.cc/products/dtLite 
+    + 加载安装包：~~deamon tool lite https://www.daemon-tools.cc/products/dtLite ~~ 现在有垃圾捆绑了
+      + WinCDEmu https://wincdemu.sysprogs.org/download/
   + 学术
     + 流程图: https://github.com/jgraph
     + Zotero：搭配网盘使用，自制免费同步，注意安装路径的设置
@@ -79,6 +80,7 @@ shutdown /s /t 3600
 yt-dlp -F URL
 yt-dlp -f 30232 URL
 yt-dlp "https://www.youtube.com/watch?v=xxx"
+yt-dlp "https://www.youtube.com/watch?v=xxx"  -f "137+233-0"
 yt-dlp "https://www.youtube.com/watch?v=xxx"  -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4"
 yt-dlp "https://www.twitch.tv/videos/xxxx" -o "E:\xxxx\xxxx.mp4" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" --download-sections "*00:13:00-07:54:10"
 ffmpeg -ss 0:30:00 -i "output_1.mp4" -t 600 -codec copy -y "output_1.4.mp4"
@@ -90,5 +92,6 @@ ffmpeg -i "video60fps_1.mp4" -vf "ass=20250709_so45124910_comments_CH_extend.ass
 
 pip install 
 pip uninstall 
+pip cache purge
 pyinstaller --noconfirm -w --onefile --icon=icon.ico main.py
 ```

@@ -38,7 +38,7 @@ TTS_TEMPLATES = {
         # 合成参数
         "top_k": 5, "top_p": 1, "temperature": 1, "text_split_method": "cut5",
         "batch_size": 1, "batch_threshold": 0.75, "split_bucket": True,
-        "speed_factor": 1.15, "fragment_interval": 0.3, "seed": 333,
+        "speed_factor": 1.1, "fragment_interval": 0.3, "seed": 9865,
         "parallel_infer": True, "media_type": "wav", "streaming_mode": False,
         "repetition_penalty": 1.35, "sample_steps": 24, "super_sampling": False,
     },
@@ -126,8 +126,8 @@ def generate_audio_for_text(text, text_lang, output_path, params_template):
         return False
 
 def main():
-    srt_file_path = "E:\\抽吧唧\\melonbooks\\new.srt"
-    output_dir = "E:\\抽吧唧\\melonbooks\\sub"
+    srt_file_path = "E:/抽吧唧/NAYUTASEIJIN/1.srt"
+    output_dir = "E:/抽吧唧/NAYUTASEIJIN/sub"
     os.makedirs(output_dir, exist_ok=True)
 
     if not switch_models(GPT_WEIGHTS_PATH, SOVITS_WEIGHTS_PATH): sys.exit(1)

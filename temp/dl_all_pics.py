@@ -9,8 +9,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
 # ====== 配置参数 ======
-URL_LIST_FILE = 'E:\\BROWSER\\urls.txt'
-SAVE_ROOT = 'E:\\BROWSER\\dl'
+URL_LIST_FILE = 'H:\\BROWSER\\urls.txt'
+SAVE_ROOT = 'H:\\BROWSER\\dl'
 CHROMEDRIVER_PATH = 'E:\\下载\\picture\\chromedriver.exe'
 SCROLL_PAUSE_TIME = 3
 MAX_IDLE_ROUNDS = 9

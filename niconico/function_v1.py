@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 # 我在做一个翻译弹幕文件ass的项目，用python帮我实现以下功能，并把功能集成在一个界面上。我的设计思路是: 翻译的文件是jp.ass，新建文件jp_ch.ass，储存数据的hoyanku_data.csv。文件浏览选择jp.ass，功能1“检查ass”: 读取jp.ass，找到Format开头的行，然后从下一行逐行扫描，每一行必须满足的格式是：Dialogue: 0,0:00:00.00,0:00:09.00,Default,,0,0,0,,{xxx}string 你需要检查开头是否是Dialogue: 逗号数量是否正确，时间格式是否正确，{xxx}部分是否缺失{}。返回所有不满足的行序号。功能2“检查对应格式”：选择jp_ch.ass和jp.ass两个文件路径（设计出用户可拖拽进界面就填入路径的形式），然后逐行扫描两个文件，只有序号相同的行才会比较，忽略掉每行string部分，前面的Dialogue: 0,0:00:00.00,0:00:09.00,Default,,0,0,0,,{xxx}部分如果不一致，则返回这一行的序号，每次运行返回第一个不相同的行序号即可。功能3“新建jp_ch.ass”：选择jp.ass路径，把每一行都原封不动地复制，但删除掉每行string部分，保存到相同路径下“jp_ch.ass”。功能4“扫描已有翻译”：选择jp.ass，jp_ch.ass和hoyanku_data.csv三个文件路径，先运行功能2，如果功能2所有行相同再运行：扫描jp.ass每行，把其中的string部分提取出来在hoyanku_data中搜索，如果存在对应翻译记录，则把jp_ch.ass中相同行的string内容替换成对应的翻译，并同时记录找到有对应翻译记录时的行号，最后全部扫描完后，把行号保存在同目录的already_index_temp.txt文件里,用逗号分隔。功能5：读取already_index_temp.txt路径和jp.ass路径，把jp.ass中没在already_index_temp.txt中出现且满足Dialogue:开头的行进行扫描，提取每行的string部分，然后每个string占一行保存在同目录的need_honyaku_temp.text文件中，用于记录需要让AI翻译的内容。功能6：我会把自己用其他方式把need_honyaku_temp.text中的内容翻译好，保存到同目录的honyaku_temp.text文件中。这里选择honyaku_temp.text和already_index_temp.txt的路径，然后把honyaku_temp.text中的每行内容提取出来，逐行付给没在already_index_temp.txt中出现的jp_ch.ass行的string部分，already_index_temp.txt扫描到最后行后看对应的是否恰好是jp_ch.ass中没在already_index_temp.txt中出现的行的最后一行。是的话返回成功完成。否则弹出有错误。给我实现这些功能的完整代码
-##帮我把该日文内容翻译成简体中文，注意这些来自于ニコニコ的评论，注意语言风格要符合，如果内容是常见的英文对应的假名，翻译成中文时可以直接使用英文单词，保留其他特殊字符。直接给我翻译后的中文，每行对应原日文的一行，不要出现少行、多行的情况。你经常犯一个错误，倘若连续出现相同的翻译结果，你容易缺行，请特别小心。
-## 在这个基础上在扩展新加几个功能，新加功能1：把jp_ch.ass文件和jp.ass文件的文字内容合并写成中文(日文)的形式替换掉原先的每行内容，然后保存得到一个新的doublesub.ass文件在同目录。新加功能2：让用户可以输入一个压缩数值value，然后把jp_ch.ass的出现时间全部改为t*value保存为新文件jp_ch_value.ass。新加功能3(重构弹幕)重大更新：我想实现一个功能重构弹幕。读取jp_ch_value.ass先做一些统计，例如弹幕相同内容的出现总数，以及是什么时刻总数增加的（这里你根据我之后描述的功能确定怎么高效计算）。然后让所有非\move的弹幕在出现时间时从屏幕右上角同一地方高速（时间为参数可调）射进左侧（斜线移动，或者曲线，旋转等，可加入随机性），然后从屏幕左侧离开。进入的弹幕的不透明度均为0.5，然后记录那些整个时间段出现次数大于thread（默认为5）的弹幕，并让这些弹幕在出现后停留在屏幕左下方，大小和射入的弹幕大小一样（作为参数设置），固定的弹幕不透明都为1。并且每次有相同内容的弹幕出现射入，就会把这个固定的弹幕变大重新固定（100个相同的进场时为10倍大，其它以此类推），如果有多个固定弹幕，其排布规则是类似于密切堆放，互相不覆盖，从左下角往右上角延申，并且越大的弹幕约在左下方，这里的算法可能很复杂，随着加入弹幕会不断重排，你需要好好规划怎么写代码。如果空间不够，让固定堆放的弹幕可以自然溢出屏幕上方和右方。但左下角始终放此时最大的弹幕。你需要按我说的计算出新的弹幕的ass文件，并把它保存到ultra_comments.ass。给我新增加的代码部分。
-# 
-# 然后检测行内是否含有\move，非\move的弹幕的行除了之前的出现时间压缩外保持不变。重点是彻底改变\move的弹幕的运动逻辑。用户需要输入屏幕尺寸（默认1920x1080），初始每个轨道的高h和轨道间隔的高h0，从而计算出轨道数量。注意这些轨道数量之后会变化并且起初弹幕分配轨道的逻辑是，当轮到这个弹幕时，则选择上一个弹幕的下一个轨道进入，如果是最后一个轨道，则进入第一个轨道。，有空轨道则进入，如果都没有，则占用第一个轨道等如果含有，则把所有这样的弹幕改为以0.2秒时间从右侧滚到屏幕左侧并停留，\move的参数，例如\move(2032.5, 265, -112.5, 265)改为\move(2032.5, 265, 112.5, 265)这样的参数，即第三位数字改为正值，的弹幕的运动逻辑，让弹幕瞬间到达然后得到一个新的文件doublesub_value.ass保存在同目录下。
+##帮我把该日文内容翻译成简体中文，注意这些来自于ニコニコ的评论，注意语言风格要符合，如果内容是常见的英文对应的假名，翻译成中文时可以直接使用英文单词，保留其他特殊字符。直接给我翻译后的中文，你需要翻译一行输出一行，严格保证一对一的关系。
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -69,19 +66,23 @@ class AssTranslatorApp:
 
         # 参数定义
         self.reconstruct_params = {
-            "threshold": tk.IntVar(value=5),
-            "move_duration": tk.DoubleVar(value=0.5),
-            "base_font_size": tk.IntVar(value=25)
+            "busy_duration": tk.IntVar(value=8),
+            "move_duration": tk.DoubleVar(value=16),
+            "base_font_size": tk.IntVar(value=45),
+            "track_spacing": tk.IntVar(value=4)        # 新增: 轨道间距
         }
 
-        ttk.Label(params_grid, text="热门阈值 (Threshold):").grid(row=0, column=0, padx=5, pady=2, sticky="w")
-        ttk.Entry(params_grid, textvariable=self.reconstruct_params["threshold"], width=8).grid(row=0, column=1, padx=5, pady=2)
+        ttk.Label(params_grid, text="热门阈值 (busy_duration):").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        ttk.Entry(params_grid, textvariable=self.reconstruct_params["busy_duration"], width=8).grid(row=0, column=1, padx=5, pady=2)
 
         ttk.Label(params_grid, text="移动时长(秒) (Move Duration):").grid(row=0, column=2, padx=5, pady=2, sticky="w")
         ttk.Entry(params_grid, textvariable=self.reconstruct_params["move_duration"], width=8).grid(row=0, column=3, padx=5, pady=2)
 
         ttk.Label(params_grid, text="固定弹幕字号 (Base Font Size):").grid(row=1, column=0, padx=5, pady=2, sticky="w")
         ttk.Entry(params_grid, textvariable=self.reconstruct_params["base_font_size"], width=8).grid(row=1, column=1, padx=5, pady=2)
+
+        ttk.Label(params_grid, text="轨道间距 (track spacing):").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        ttk.Entry(params_grid, textvariable=self.reconstruct_params["track_spacing"], width=8).grid(row=1, column=2, padx=5, pady=2)
         
         ttk.Button(reconstruct_frame, text="执行重构 (Run Reconstruction)", command=self.run_reconstruct_danmaku).pack(fill="x", padx=5, pady=5)
 
@@ -641,7 +642,7 @@ class AssTranslatorApp:
                         continue
                     
                     # 合并成 "中文(日文)" 格式
-                    merged_text = f"{ch_text.strip()}({jp_text.strip()})"
+                    merged_text = f"{ch_text.strip()} | {jp_text.strip()}"
                     new_line = f"{prefix},{style}{merged_text}\n"
                     new_lines.append(new_line)
                 else:
@@ -715,152 +716,179 @@ class AssTranslatorApp:
             messagebox.showerror("异常", f"处理文件时发生异常: {e}")
         self.log("--- 功能9: 执行完毕 ---\n")
 
-    # --- 功能10: 重构高级弹幕 (已修正版本) ---
+    # --- 功能10: 重构高级弹幕 (已修正坐标与速度问题) ---
     def run_reconstruct_danmaku(self):
+        """
+        使用智能轨道系统重构弹幕。
+        该版本修正了弹幕的进入动画和速度计算：
+        1. 弹幕将从屏幕右侧边缘平滑进入，而不是突然出现。
+        2. 所有弹幕（无论长短）横跨屏幕的时间相同，这意味着长弹幕的速度会更快。
+        """
         self.clear_log()
-        self.log("--- 开始执行功能10: 重构高级弹幕 (v2 - 已修正时间解析) ---")
-        # 使用 jp_ch_ass_path，因为通常这是经过处理的、需要重构的文件
-        # 用户可以根据实际情况选择文件，这里标签只是一个提示
-        input_file = self._get_path(self.jp_ch_ass_path, "jp_ch_value.ass (或其他输入源)")
+        self.log("--- 开始执行功能: 重构弹幕 (坐标与速度修正版) ---")
+
+        # 1. 获取输入文件和参数
+        input_file = self._get_path(self.jp_ch_ass_path, "jp_ch.ass")
         if not input_file: return
-        
+
         try:
-            threshold = self.reconstruct_params["threshold"].get()
+            busy_duration = self.reconstruct_params["busy_duration"].get()
             move_duration = self.reconstruct_params["move_duration"].get()
-            base_font_size = self.reconstruct_params["base_font_size"].get()
+            font_size = self.reconstruct_params["base_font_size"].get()
+            track_spacing = self.reconstruct_params["track_spacing"].get()
+            if move_duration <= 0 or font_size <= 0:
+                messagebox.showerror("错误", "移动时长和字号必须是正数。")
+                return
         except tk.TclError:
-            messagebox.showerror("错误", "参数无效，请输入正确的整数或小数。")
+            messagebox.showerror("错误", "参数无效，请输入正确的数字。")
             return
-
-        output_path = input_file.with_name("ultra_comments.ass")
-
-        self.log(f"参数: 阈值={threshold}, 移动时长={move_duration}s, 基础字号={base_font_size}")
+        
+        output_path = input_file.with_name(f"{input_file.stem}_reconstructed.ass")
+        self.log(f"输入文件: {input_file}")
+        self.log(f"输出文件: {output_path}")
+        self.log(f"参数: 轨道占用={busy_duration}s, 横跨时长={move_duration}s, 字号={font_size}, 轨道间隔={track_spacing}px")
 
         try:
+            # 2. 读取文件并初始化轨道系统
             with open(input_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
-            
-            # 1. 分析文件
-            self.log("步骤 1/5: 分析弹幕内容和时间...")
+
             screen_w, screen_h = self._parse_ass_header(lines)
+
+            track_height = font_size + track_spacing
+            if track_height <= 0:
+                messagebox.showerror("错误", "字号和轨道间隔必须大于0。")
+                return
+            num_tracks = screen_h // track_height
+            # 轨道Y坐标从上到下排列
+            track_y_positions = [i * track_height + track_spacing + font_size/2 for i in range(num_tracks)]
+            track_availability_times = [0.0] * num_tracks # 记录每个轨道何时变为空闲
+            self.log(f"已初始化 {num_tracks} 条弹幕轨道。")
+
+            # 3. 分离Header和Dialogue行，并修改Header中的样式
             header_lines = []
-            dialogue_lines = []
-            # 分离头部和Dialogue行
+            dialogue_lines_raw = []
             in_events_section = False
             for l in lines:
                 if l.strip() == '[Events]':
                     in_events_section = True
                 if l.strip().startswith("Dialogue:") and in_events_section:
-                    dialogue_lines.append(l)
+                    dialogue_lines_raw.append(l)
                 else:
                     header_lines.append(l)
 
-            comment_data = {} # { text: {"count": N, "events": [start_time, ...]} }
-            for line in dialogue_lines:
-                prefix, style, text = self._get_dialogue_parts(line)
-                text = text.strip()
-                if not text or prefix is None or '\\move' in style: continue
+            # --- 核心修改: 修改Header中的Default样式以控制所有滚动弹幕 ---
+            temp_header_lines = []
+            style_modified = False
+            # ASS Style Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+            for header_line in header_lines:
+                line_strip = header_line.strip()
+                if line_strip.lower().startswith("style: default,"):
+                    parts = line_strip.split(',')
+                    if len(parts) > 18:
+                        # parts[2]: Fontsize
+                        parts[2] = str(font_size)
+                        # parts[18]: Alignment (Numpad-style)
+                        # 4 = 左中对齐. 这是保证弹幕从右侧平滑进入的关键
+                        parts[18] = '4' 
+                        temp_header_lines.append(",".join(parts) + '\n')
+                        style_modified = True
+                        self.log(f"已将 'Default' 样式更新为: 字号={font_size}, 对齐方式=4 (左中)")
+                    else:
+                        temp_header_lines.append(header_line)
+                else:
+                    temp_header_lines.append(header_line)
+            
+            if not style_modified:
+                self.log("警告: 未在文件中找到 'Style: Default,' 行，可能无法正确应用滚动弹幕样式。")
+            header_lines = temp_header_lines
+
+            # 4. 解析并排序所有Dialogue行
+            parsed_dialogues = []
+            for line in dialogue_lines_raw:
+                prefix, style_block, text = self._get_dialogue_parts(line)
+                is_special = True
+                start_sec = 0
+                if prefix:
+                    # 任何已有样式代码（如位置、颜色等）的弹幕都视为特殊弹幕，予以保留
+                    is_special = not '{\move' in style_block
+                    try:
+                        start_sec = self._hms_to_seconds(prefix.split(',')[1])
+                    except (IndexError, ValueError):
+                        self.log(f"警告: 无法解析时间，将保留原始行: {line.strip()}")
+                        is_special = True
                 
-                ### MODIFIED ###: 修正时间戳解析的索引
-                # 正确的格式是: Dialogue: Layer,Start,End,Style,...
-                # prefix.split(',') 后:
-                # [0] = 'Dialogue: 0' (Layer)
-                # [1] = '0:00:00.49'  (Start)
-                # [2] = '0:00:16.48'  (End)
-                # [3] = 'Default'     (Style)
-                line_parts = prefix.split(',')
-                if len(line_parts) < 3:
-                    self.log(f"警告: 跳过格式不完整的行: {line.strip()}")
+                parsed_dialogues.append({
+                    "start_sec": start_sec,
+                    "is_special": is_special,
+                    "text": text.strip() if text else "",
+                    "original_line": line
+                })
+            
+            parsed_dialogues.sort(key=lambda d: d['start_sec'])
+
+            # 5. 遍历排序后的弹幕，分配轨道并生成新行
+            new_dialogues = []
+            processed_count = 0
+            for item in parsed_dialogues:
+                if item["is_special"]:
+                    new_dialogues.append(item["original_line"])
                     continue
 
-                start_sec = self._hms_to_seconds(line_parts[1])
-                # end_sec = self._hms_to_seconds(line_parts[2]) # end_sec 在此功能中非必需
-
-                if text not in comment_data:
-                    comment_data[text] = {"count": 0, "events": []}
-                comment_data[text]["count"] += 1
-                comment_data[text]["events"].append(start_sec)
-            
-            for text in comment_data:
-                comment_data[text]["events"].sort()
-
-            self.log(f"分析完成，找到 {len(comment_data)} 种不同弹幕。")
-            
-            # 2. 生成“飞入”弹幕
-            self.log("步骤 2/5: 生成飞入弹幕效果...")
-            new_dialogues = []
-            for text, data in comment_data.items():
-                for start_time in data["events"]:
-                    end_time = start_time + move_duration
-                    # 随机化Y轴，避免完全重叠
-                    start_y = random.randint(0, int(screen_h * 0.6))
-                    end_y = random.randint(int(screen_h * 0.2), int(screen_h * 0.8))
-                    
-                    move_tag = f"\\move({screen_w}, {start_y}, 0, {end_y}, 0, {int(move_duration * 1000)})"
-                    style_tag = f"{{{move_tag}\\1a&H80&}}" # 半透明
-                    
-                    line = f"Dialogue: 0,{self._seconds_to_hms(start_time)},{self._seconds_to_hms(end_time)},Default,,0,0,0,,{style_tag}{text}\n"
-                    new_dialogues.append(line)
-            
-            self.log(f"已生成 {len(new_dialogues)} 条飞入弹幕。")
-
-            # 3. 识别热门弹幕并生成事件时间点
-            self.log("步骤 3/5: 处理固定弹幕布局...")
-            hot_comments = {t: d for t, d in comment_data.items() if d["count"] >= threshold}
-            if not hot_comments:
-                self.log("没有达到阈值的热门弹幕，跳过固定弹幕生成。")
-            else:
-                self.log(f"找到 {len(hot_comments)} 种热门弹幕。")
+                start_time = item["start_sec"]
+                text_content = item['text']
                 
-                event_times = sorted(list(set(
-                    time for text in hot_comments for time in hot_comments[text]["events"]
-                )))
+                # 估算弹幕宽度，这是计算速度和路径的关键
+                text_width, _ = self._estimate_bbox(text_content, font_size)
 
-                if not event_times:
-                     self.log("热门弹幕没有有效的时间事件，跳过。")
+                # 寻找一个可用的轨道
+                assigned_track_index = -1
+                for i in range(num_tracks):
+                    if track_availability_times[i] <= start_time:
+                        assigned_track_index = i
+                        break
+                
+                # 如果所有轨道都被占用，则选择最早结束的那个轨道（弹幕会稍微重叠，但能保证出现）
+                if assigned_track_index == -1:
+                    assigned_track_index = min(range(num_tracks), key=lambda i: track_availability_times[i])
+                    y_pos = track_y_positions[assigned_track_index] + track_spacing*2
                 else:
-                    event_times.append(event_times[-1] + 30) # 添加一个结束点
-                    
-                    # 4. 按时间间隔计算并生成“固定”弹幕
-                    current_counts = Counter()
-                    for i in range(len(event_times) - 1):
-                        interval_start = event_times[i]
-                        interval_end = event_times[i+1]
-                        
-                        # 更新当前时间点的弹幕计数
-                        for text, data in hot_comments.items():
-                            if interval_start in data["events"]:
-                                current_counts[text] += data["events"].count(interval_start)
-                        
-                        # 准备布局计算
-                        comments_to_place = []
-                        for text, count in current_counts.items():
-                            scale_factor = 1 + (9 * (count**0.5 / 100**0.5)) if count > 1 else 1
-                            current_font_size = base_font_size * scale_factor
-                            w, h = self._estimate_bbox(text, current_font_size)
-                            comments_to_place.append((text, w, h, {"count": count, "scale": scale_factor}))
-                        
-                        if not comments_to_place: continue
+                    y_pos = track_y_positions[assigned_track_index]
+                
+                # 标记该轨道下一次可用的时间
+                track_availability_times[assigned_track_index] = start_time + busy_duration
 
-                        # 执行布局
-                        layout = self._calculate_layout(comments_to_place, screen_w, screen_h)
-                        
-                        # 生成该时间段的Dialogue行
-                        for text, (x,y) in layout.items():
-                            count_data = next(item[3] for item in comments_to_place if item[0] == text)
-                            scale_percent = int(count_data["scale"] * 100)
-                            
-                            style_tag = f"\\an7\\pos({x},{y})\\fscx{scale_percent}\\fscy{scale_percent}\\fs{base_font_size}\\1a&H00&"
-                            line = f"Dialogue: 1,{self._seconds_to_hms(interval_start)},{self._seconds_to_hms(interval_end)},Default,,0,0,0,,{{{style_tag}}}{text}\n"
-                            new_dialogues.append(line)
+                # 弹幕的结束时间 = 开始时间 + 它横跨屏幕所需的总时间
+                end_time = start_time + move_duration
+                
+                # 计算移动路径
+                # start_x: 弹幕左侧在屏幕右边缘，所以整个弹幕在屏幕外
+                # end_x: 弹幕左侧移动到屏幕左边缘之外一个自身宽度的距离，保证整个弹幕都移出屏幕
+                start_x = screen_w 
+                end_x = -text_width
 
-            # 5. 写入最终文件
-            self.log("步骤 5/5: 写入最终ass文件...")
+                # 创建\move标签。由于我们在Header中设置了\an4，这里无需再次指定
+                style_tag = f"\\move({start_x}, {y_pos}, {end_x}, {y_pos})"
+
+                new_line = (
+                    f"Dialogue: 0,"
+                    f"{self._seconds_to_hms(start_time)},"
+                    f"{self._seconds_to_hms(end_time)},"
+                    f"Default,,0,0,0,," # 使用在Header中被修改过的Default样式
+                    f"{{{style_tag}}}{text_content}\n"
+                )
+                new_dialogues.append(new_line)
+                processed_count += 1
+            
+            self.log(f"处理完成. {processed_count} 条普通弹幕被重构, {len(parsed_dialogues) - processed_count} 条特殊弹幕/无效行被保留.")
+
+            # 6. 写入最终文件
+            self.log("正在写入新文件...")
             final_content = "".join(header_lines) + "".join(new_dialogues)
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(final_content)
 
-            self.log(f"高级弹幕文件已成功生成: {output_path}")
+            self.log(f"弹幕重构成功！文件已保存至: {output_path}")
             messagebox.showinfo("成功", f"文件已保存至:\n{output_path}")
 
         except Exception as e:
@@ -868,7 +896,8 @@ class AssTranslatorApp:
             import traceback
             self.log(traceback.format_exc())
             messagebox.showerror("异常", f"处理文件时发生异常: {e}")
-        self.log("--- 功能10: 执行完毕 ---\n")
+
+        self.log("--- 功能执行完毕 ---\n")
 
 if __name__ == "__main__":
     root = tk.Tk()

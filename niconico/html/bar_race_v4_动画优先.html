@@ -966,9 +966,11 @@
                 clearTimeout(animationTimer);
                 activeDanmakuAnimations.forEach(anim => anim.pause());
                 musicPlayerElement.pause();
-                videoPlayer.element.pause();
-                videoPlayer.element.style.opacity = '0';
-                videoPlayer.currentReason = null; 
+                if (videoSrcUrl) {
+                    videoPlayer.element.pause();
+                    videoPlayer.element.style.opacity = '0';
+                    videoPlayer.currentReason = null;
+                }
             }
             
             // ======================================================================
@@ -979,10 +981,6 @@
                 hideWordCloud();
                 if (keyframes.length === 0) {
                     alert("请先选择一个 .ass 文件！");
-                    return;
-                }
-                if (!videoSrcUrl) {
-                    alert("请先选择一个视频文件！");
                     return;
                 }
                 if (isPlaying) pauseAnimation(); else playAnimation();
