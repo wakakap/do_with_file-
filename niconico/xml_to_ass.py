@@ -8,9 +8,9 @@ import math
 ## ffmpeg -i nullsrc=s=1920x1080 -vf "ass=20250708_so45145704_comments_ch_gai_extend.ass" ass.mov
 
 # --- 配置项 ---
-FILE_NAME = "20250726_ep5_7000+_so45216475"
-XML_FILE = f'niconico/takop/{FILE_NAME}.xml'  # 替换成你的 XML 文件名
-OUTPUT_ASS_FILE = f'niconico/takop/{FILE_NAME}_comments.ass'     # 输出的 ASS 字幕文件名
+FILE_NAME = "20250727_ep1_so29416460"
+XML_FILE = f'niconico/higurashi/{FILE_NAME}.xml'  # 替换成你的 XML 文件名
+OUTPUT_ASS_FILE = f'niconico/higurashi/{FILE_NAME}_comments.ass'     # 输出的 ASS 字幕文件名
 VIDEO_WIDTH = 1920                   # 你的视频宽度 (像素)
 VIDEO_HEIGHT = 1080                  # 你的视频高度 (像素)
 BASE_FONT_SIZE = 45                  # 弹幕基准字体大小

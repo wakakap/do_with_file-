@@ -66,7 +66,7 @@ class AssTranslatorApp:
 
         # 参数定义
         self.reconstruct_params = {
-            "busy_duration": tk.IntVar(value=8),
+            "busy_duration": tk.IntVar(value=4),
             "move_duration": tk.DoubleVar(value=16),
             "base_font_size": tk.IntVar(value=45),
             "track_spacing": tk.IntVar(value=4)        # 新增: 轨道间距

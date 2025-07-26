@@ -140,12 +140,12 @@ def process_ass_file(input_path: str, output_path: str, thread: int = 10, max_mi
 
 if __name__ == '__main__':
     # 请将 'your_input_file.ass' 替换为你的实际文件名
-    input_file = 'niconico/takop/20250713_ep3_会员7000+_so45169586_comments_CH.ass'
+    input_file = 'niconico/takop/20250712_ep3_会员2万+_so45169586_comments_CH.ass'
     
     # 检查示例文件是否存在，如果不存在则创建一个
 
     # 定义输出文件名
-    output_file = 'niconico/takop/20250713_ep3_会员7000+_so45169586_comments_CH_merge.ass'
+    output_file = 'niconico/takop/20250712_ep3_会员2万+_so45169586_comments_CH_merge.ass'
     
     # 执行处理函数
     # 你可以修改这里的参数，例如将 thread 改为 5，或将 max_minutes 改为 10
