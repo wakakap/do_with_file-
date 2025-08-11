@@ -17,8 +17,8 @@
     + 编码：`ffmpeg -i "1.mov" -c:v libx264 -crf 20 -preset veryfast -c:a aac -b:a 128k -y "2.mp4"`
     + 截取：`ffmpeg -ss 0:00:00 -i "sum.mp4" -t 208 -codec copy -y "sum2.mp4"`
     + 截取+编码：`ffmpeg -ss 00:01:28 -i "1.webm" -t 20 -c:v libx264 -crf 20 -preset veryfast -c:a aac -b:a 128k -y "2.mp4"`
-    + 加帧（最小蠕动感）：`ffmpeg -i "video.mp4" -vf "minterpolate=fps=60:mi_mode=blend:scd=1" "video60fps.mp4"`
-    + 加字幕（必须编码）：`ffmpeg -i "video60fps.mp4" -vf "ass=20250712_ep3_会员2万+_so45169586_comments_CH_merge.ass" -c:a aac -b:a 128k "3.mp4"`
+    + 加帧（最小蠕动感）：`ffmpeg -i "06.mp4" -vf "minterpolate=fps=60:mi_mode=blend:scd=1" "video60fps.mp4"`
+    + 加字幕（必须编码）：`ffmpeg -i "video60fps.mp4" -vf "ass=jp_ch.ass" -c:a aac -b:a 128k "s.mp4"`
 + 图片处理：
   + 放大：Upscayl
 + 下载：
