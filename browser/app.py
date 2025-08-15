@@ -12,7 +12,7 @@ BASE_DIR = "H:\\BROWSER"
 # 定义各个必要的媒体文件夹路径
 MANGA_PAGES_PATH = os.path.join(BASE_DIR, "MANGA_PAGES")
 MANGA_COVER_PATH = os.path.join(BASE_DIR, "MANGA_COVER")
-JAV_VIDEO_PATH = os.path.join(BASE_DIR, "JAV_VIDEO")
+JAV_PAGES_PATH = os.path.join(BASE_DIR, "JAV_PAGES")
 JAV_COVER_PATH = os.path.join(BASE_DIR, "JAV_COVER")
 # 定义数据文件的路径
 TAGS_FILE_PATH = os.path.join(BASE_DIR, "tags.json")
@@ -22,7 +22,7 @@ MAP_FILE_PATH = os.path.join(BASE_DIR, "map.txt")
 REQUIRED_PATHS = {
     "漫畫頁面資料夾 (MANGA_PAGES_PATH)": MANGA_PAGES_PATH,
     "漫畫封面資料夾 (MANGA_COVER_PATH)": MANGA_COVER_PATH,
-    "影片資料夾 (JAV_VIDEO_PATH)": JAV_VIDEO_PATH,
+    "影片資料夾 (JAV_PAGES_PATH)": JAV_PAGES_PATH,
     "影片封面資料夾 (JAV_COVER_PATH)": JAV_COVER_PATH,
 }
 # 启动时检查所有必要的文件夹是否存在，如果不存在则打印错误信息并退出程序
@@ -54,7 +54,7 @@ auto_import_lock = threading.Lock()
 # --- 辅助函数 ---
 def get_paths_for_mode(mode):
     """根据前端请求的模式（'JAV' 或 'MANGA'），返回对应的内容和封面路径。"""
-    if mode.upper() == 'JAV': return JAV_VIDEO_PATH, JAV_COVER_PATH
+    if mode.upper() == 'JAV': return JAV_PAGES_PATH, JAV_COVER_PATH
     return MANGA_PAGES_PATH, MANGA_COVER_PATH
 
 def is_safe_path(base_path, requested_path):
@@ -126,7 +126,7 @@ def api_get_media(mode, type, filepath):
     if type == 'cover':
         base_path = cover_path
     elif mode.upper() == 'JAV' and type == 'video':
-        base_path = JAV_VIDEO_PATH
+        base_path = JAV_PAGES_PATH
     elif mode.upper() == 'MANGA' and type == 'pages':
         base_path = MANGA_PAGES_PATH
     else:
@@ -151,7 +151,7 @@ def api_open_folder():
     if not path or not os.path.exists(path): return jsonify({"status": "error", "message": "Path not found."}), 404
     
     # 安全性检查：确保要打开的目录在 MANGA 或 JAV 的根目录之下
-    if not (is_safe_path(MANGA_PAGES_PATH, path) or is_safe_path(JAV_VIDEO_PATH, path)): 
+    if not (is_safe_path(MANGA_PAGES_PATH, path) or is_safe_path(JAV_PAGES_PATH, path)): 
         return jsonify({"status": "error", "message": "Access Denied"}), 403
         
     try:

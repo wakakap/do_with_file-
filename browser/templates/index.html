@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文件系统媒体浏览器</title>
+    <link rel="manifest" href="./manifest.json">
     <style>
         /* CSS 变量定义，用于统一管理颜色、字体等样式 */
         :root { --background-color: #242424; --text-color: #FFFFFF; --button-color: #3B3B3B; --button-hover-color: #888888; --card-background-color: #494141; --card-border-color: #333333; --nav-text-color: #AAAAAA; --placeholder-text-color: #CCCCCC; --font-family: 'Microsoft YaHei', 'Segoe UI', 'WenQuanYi Micro Hei', sans-serif; --label-start-r: 95; --label-start-g: 15; --label-start-b: 64; --label-end-r: 220; --label-end-g: 47; --label-end-b: 2; }
@@ -728,6 +729,40 @@
         }
 
         // --- 事件监听器 ---
+        let touchStartX = 0;
+        let touchStartY = 0;
+        const edgeSwipeZone = 50; // 屏幕左侧50像素内可触发
+        const swipeThreshold = 100; // 至少滑动100像素才算有效
+
+        document.body.addEventListener('touchstart', (e) => {
+            // 只记录单指触摸
+            if (e.touches.length === 1) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        document.body.addEventListener('touchend', async (e) => {
+            // 确保在图片或视频查看器未打开时才触发
+            if (state.gallery.isOpen || videoPlayer.classList.contains('active')) {
+                return;
+            }
+
+            // 必须是手指离开屏幕的事件
+            if (e.changedTouches.length === 1) {
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY;
+                const deltaX = touchEndX - touchStartX;
+                const deltaY = touchEndY - touchStartY;
+
+                // 检查是否是从屏幕左边缘开始的向右滑动
+                if (touchStartX < edgeSwipeZone && deltaX > swipeThreshold && Math.abs(deltaY) < deltaX) {
+                    // 确认是横向滑动，且滑动距离足够
+                    console.log('Edge swipe detected, going back.');
+                    await goBack();
+                }
+            }
+        });
         
         modeSwitchBtn.addEventListener('click', async () => { 
             // 模式切换按钮
@@ -792,8 +827,63 @@
         });
         
         // 图片查看器内的交互事件
-        imageContainer.addEventListener('click', () => changeImage(1)); // 左键点击 -> 下一张
-        imageContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); changeImage(-1); }); // 右键点击 -> 上一张
+        // imageContainer.addEventListener('click', () => changeImage(1)); // 左键点击 -> 下一张
+        // imageContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); changeImage(-1); }); // 右键点击 -> 上一张
+        let viewerTouchStartX = 0;
+        let viewerTouchStartY = 0; // 新增：记录 Y 轴起始位置
+        const viewerSwipeThreshold = 50; // 滑动超过50像素才算有效
+
+        imageContainer.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // 阻止默认行为，如页面滚动
+            if (e.touches.length === 1) {
+                viewerTouchStartX = e.touches[0].clientX;
+                viewerTouchStartY = e.touches[0].clientY; // 新增：记录 Y 轴坐标
+            }
+        }, { passive: false });
+
+        imageContainer.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (e.changedTouches.length === 1) {
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY; // 新增：记录 Y 轴结束位置
+                const deltaX = touchEndX - viewerTouchStartX;
+                const deltaY = touchEndY - viewerTouchStartY; // 新增：计算 Y 轴滑动距离
+
+                // 判断是否为有效滑动（任一方向超过阈值）
+                if (Math.abs(deltaX) > viewerSwipeThreshold || Math.abs(deltaY) > viewerSwipeThreshold) {
+                    
+                    // 判断是横向滑动还是纵向滑动（哪个方向滑得更远）
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                        // --- 横向滑动 ---
+                        if (deltaX > 0) {
+                            // 向右滑动 -> 下一页
+                            changeImage(1);
+                        } else {
+                            // 向左滑动 -> 上一页
+                            changeImage(-1);
+                        }
+                    } else {
+                        // --- 纵向滑动 ---
+                        if (deltaY < 0) {
+                            // 向上滑动 -> 下一页
+                            changeImage(1);
+                        } else {
+                            // 向下滑动 -> 上一页
+                            changeImage(-1);
+                        }
+                    }
+                } else {
+                    // 滑动距离不够，视为轻点 -> 下一页
+                    changeImage(1);
+                }
+            }
+        });
+
+        // 保持原来的右键点击翻页功能，以兼容桌面端
+        imageContainer.addEventListener('contextmenu', (e) => { 
+            e.preventDefault(); 
+            changeImage(-1); 
+        });
         imageViewerCloseBtn.addEventListener('click', (e) => { e.stopPropagation(); closeImageViewer(); });
         videoPlayerCloseBtn.addEventListener('click', closeVideoPlayer);
         fullscreenBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(); });
