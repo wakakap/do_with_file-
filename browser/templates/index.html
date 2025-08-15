@@ -47,13 +47,34 @@
         /* 图片/视频查看器的遮罩层 */
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; z-index: 1000; }
         .overlay.active { display: flex; }
-        .overlay .close-btn { position: absolute; top: 20px; right: 30px; font-size: 40px; color: white; cursor: pointer; z-index: 1010; text-shadow: 0 0 5px black; }
+        .overlay .close-btn { position: absolute; top: 26px; left: 80px; font-size: 34px; color: white; cursor: pointer; z-index: 1010; text-shadow: 0 0 5px black; line-height: 1;}
         .overlay .close-btn:hover { color: #ff4d4d; }
         #image-viewer { flex-direction: row; padding: 20px; box-sizing: border-box; }
         #image-viewer .image-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; height: 100%; padding: 0; }
         #image-viewer .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; opacity: 0; transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        #image-viewer .progress-bar { width: 40px; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 0; box-sizing: border-box; gap: 1px; cursor: pointer; }
-        #image-viewer .progress-segment { flex-grow: 1; width: 15px; background-color: #555; border-radius: 2px; margin: 0 auto; transition: background-color 0.2s; }
+        #image-viewer .progress-bar { width: 70px; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 0; box-sizing: border-box; gap: 1px; cursor: pointer; }
+        .progress-segment-wrapper {
+            display: flex;
+            align-items: center; /* 垂直居中對齊內部元素 */
+            justify-content: flex-end; /* 將內容推到右邊 */
+            flex-grow: 1; /* 預設的增長因子，會被 JS 動態修改 */
+        }
+        .progress-label {
+            width: 30px;
+            font-size: 10px;
+            color: #cccccc;
+            text-align: right;
+            padding-right: 5px;
+            flex-shrink: 0; /* 防止標籤被壓縮 */
+        }
+        #image-viewer .progress-segment {
+            flex-grow: 1; /* 佔滿 wrapper 內的剩餘寬度 */
+            max-width: 15px; /* 保持原來的寬度 */
+            align-self: stretch; /* 高度填滿 wrapper */
+            background-color: #555;
+            border-radius: 2px;
+            transition: background-color 0.2s;
+        }
         #image-viewer .progress-segment.active { background-color: #3B8ED0; }
         #video-player video { max-width: 95vw; max-height: 95vh; outline: none; }
         #fullscreen-btn { position: absolute; top: 25px; left: 30px; font-size: 28px; color: white; cursor: pointer; z-index: 1010; text-shadow: 0 0 5px black; }
@@ -632,29 +653,52 @@
         }
         
         function buildProgressBar() {
-            // 构建图片查看器右侧的进度条
+            // 构建图片查看器右侧的进度条（新版）
             progressBarContainer.innerHTML = '';
-            for (let i = 0; i < state.gallery.files.length; i++) { 
-                const segment = document.createElement('div'); 
-                segment.className = 'progress-segment'; 
-                progressBarContainer.appendChild(segment); 
+            const pageCount = state.gallery.files.length;
+
+            for (let i = 0; i < pageCount; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'progress-segment-wrapper';
+                wrapper.dataset.index = i; // 在 wrapper 上存儲索引
+
+                const label = document.createElement('span');
+                label.className = 'progress-label';
+
+                const segment = document.createElement('div');
+                segment.className = 'progress-segment';
+
+                // 檢查是否是 10 的倍數頁 (i 是從 0 開始的索引，所以要 +1)
+                if ((i + 1) % 10 === 0 && pageCount > 10) {
+                    wrapper.style.flexGrow = 2.2; // 高度變為 2.2 倍
+                    label.textContent = i + 1;  // 顯示頁碼
+                }
+
+                wrapper.appendChild(label);
+                wrapper.appendChild(segment);
+                progressBarContainer.appendChild(wrapper);
             }
-            // 为进度条添加点击事件，允许直接跳转到对应图片
+
+            // 為整個容器添加點擊事件，利用事件冒泡
             progressBarContainer.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (e.target.classList.contains('progress-segment')) {
-                    const segments = Array.from(progressBarContainer.children);
-                    const clickedIndex = segments.indexOf(e.target);
-                    if (clickedIndex !== -1) { displayImage(clickedIndex); }
+                const wrapper = e.target.closest('.progress-segment-wrapper');
+                if (wrapper && wrapper.dataset.index) {
+                    const clickedIndex = parseInt(wrapper.dataset.index, 10);
+                    displayImage(clickedIndex);
                 }
             });
         }
         
         function updateProgressBar() {
-            // 更新进度条，高亮显示当前图片对应的段
-            const segments = progressBarContainer.children; 
-            for (let i = 0; i < segments.length; i++) { 
-                segments[i].classList.toggle('active', i === state.gallery.currentIndex); 
+            // 更新进度条，高亮显示当前图片对应的段（新版）
+            const wrappers = progressBarContainer.children;
+            for (let i = 0; i < wrappers.length; i++) {
+                // 在 wrapper 內部找到 segment 元素來切換 active 狀態
+                const segment = wrappers[i].querySelector('.progress-segment');
+                if (segment) {
+                    segment.classList.toggle('active', i === state.gallery.currentIndex);
+                }
             }
         }
         
