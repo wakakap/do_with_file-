@@ -43,8 +43,8 @@ def create_srt_from_text(input_file='input.txt', output_file='output.srt', durat
 
 if __name__ == '__main__':
     # --- 可在此处自定义参数 ---
-    input_filename = 'E:/抽吧唧/NAYUTASEIJIN/o.srt'
-    output_filename = 'E:/抽吧唧/NAYUTASEIJIN/1.srt'
+    input_filename = 'E:/抽吧唧/naruto/o.srt'
+    output_filename = 'E:/抽吧唧/naruto/1.srt'
     subtitle_duration = 3  # 每条字幕的持续时间（秒）
     # -------------------------
 

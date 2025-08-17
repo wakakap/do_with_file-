@@ -14,7 +14,7 @@ import random
 class AssTranslatorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("ASS 弹幕翻译助手 (v2.1 增强版)")
+        self.root.title("ASS 弹幕翻译助手 (v1 增强版)")
         ### MODIFIED ###: 增加了窗口高度以容纳新按钮
         self.root.geometry("800x780") 
 

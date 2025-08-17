@@ -108,6 +108,7 @@
         </div>
     </div>
     <div class="nav-frame">
+        <button id="back-btn" class="button" style="margin-right: 10px; display: none;">返回</button>
         <span id="current-path-label">正在加载...</span>
     </div>
     <div class="main-content">
@@ -144,6 +145,7 @@
     // 确保在整个 DOM 加载完成后再执行脚本
     document.addEventListener('DOMContentLoaded', () => {
         // --- 元素选择器：获取所有需要操作的 HTML 元素的引用 ---
+
         const modeSwitchBtn = document.getElementById('mode-switch-btn');
         const searchInput = document.getElementById('search-input');
         const searchBtn = document.getElementById('search-btn');
@@ -152,6 +154,7 @@
         const cardTemplate = document.getElementById('card-template');
         const openFolderBtn = document.getElementById('open-folder-btn');
         const loadingIndicator = document.getElementById('loading-indicator');
+        const backBtn = document.getElementById('back-btn');
         // 图片查看器相关元素
         const imageViewer = document.getElementById('image-viewer');
         const imageContainer = imageViewer.querySelector('.image-container');
@@ -253,6 +256,7 @@
                 // 维护路径栈，用于返回上一级
                 if (!state.pathStack.length || state.pathStack[state.pathStack.length - 1] !== data.current_path) { state.pathStack.push(data.current_path); }
                 pathLabel.textContent = `模式: ${state.mode} | ${state.currentPath}`;
+                backBtn.style.display = state.pathStack.length > 1 ? 'inline-block' : 'none';
                 mediaContainer.innerHTML = ''; // 确保容器清空
                 renderCardsStaggered(data.items, 0, state.renderingId); // 渲染卡片
             }
@@ -269,6 +273,7 @@
             if (data && data.items) {
                 const searchLabel = type === 'tag' ? `標籤搜索: "${query}"` : `關鍵詞搜索: "${query}"`;
                 pathLabel.textContent = searchLabel; // 更新路径显示为搜索信息
+                backBtn.style.display = 'inline-block';
                 mediaContainer.innerHTML = '';
                 renderCardsStaggered(data.items, 0, state.renderingId);
             }
@@ -628,6 +633,7 @@
                 const targetPath = state.pathStack.length > 0 ? state.pathStack[state.pathStack.length - 1] : '';
                 browse(targetPath); return;
             }
+            // 修改此处的判断逻辑，当在根目录（路径栈长度为1）时，不执行任何操作
             if (state.pathStack.length > 1) { // 如果在浏览模式下，从路径栈中弹出上一级路径并浏览
                 state.pathStack.pop(); 
                 const prevPath = state.pathStack[state.pathStack.length - 1]; 
@@ -729,39 +735,8 @@
         }
 
         // --- 事件监听器 ---
-        let touchStartX = 0;
-        let touchStartY = 0;
-        const edgeSwipeZone = 50; // 屏幕左侧50像素内可触发
-        const swipeThreshold = 100; // 至少滑动100像素才算有效
-
-        document.body.addEventListener('touchstart', (e) => {
-            // 只记录单指触摸
-            if (e.touches.length === 1) {
-                touchStartX = e.touches[0].clientX;
-                touchStartY = e.touches[0].clientY;
-            }
-        }, { passive: true });
-
-        document.body.addEventListener('touchend', async (e) => {
-            // 确保在图片或视频查看器未打开时才触发
-            if (state.gallery.isOpen || videoPlayer.classList.contains('active')) {
-                return;
-            }
-
-            // 必须是手指离开屏幕的事件
-            if (e.changedTouches.length === 1) {
-                const touchEndX = e.changedTouches[0].clientX;
-                const touchEndY = e.changedTouches[0].clientY;
-                const deltaX = touchEndX - touchStartX;
-                const deltaY = touchEndY - touchStartY;
-
-                // 检查是否是从屏幕左边缘开始的向右滑动
-                if (touchStartX < edgeSwipeZone && deltaX > swipeThreshold && Math.abs(deltaY) < deltaX) {
-                    // 确认是横向滑动，且滑动距离足够
-                    console.log('Edge swipe detected, going back.');
-                    await goBack();
-                }
-            }
+        backBtn.addEventListener('click', () => {
+            goBack();
         });
         
         modeSwitchBtn.addEventListener('click', async () => { 
@@ -827,7 +802,7 @@
         });
         
         // 图片查看器内的交互事件
-        // imageContainer.addEventListener('click', () => changeImage(1)); // 左键点击 -> 下一张
+        imageContainer.addEventListener('click', () => changeImage(1)); // 左键点击 -> 下一张
         // imageContainer.addEventListener('contextmenu', (e) => { e.preventDefault(); changeImage(-1); }); // 右键点击 -> 上一张
         let viewerTouchStartX = 0;
         let viewerTouchStartY = 0; // 新增：记录 Y 轴起始位置
