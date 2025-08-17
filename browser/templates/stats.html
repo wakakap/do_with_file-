@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>访问统计</title>
+    <style>
+        :root { --background-color: #242424; --text-color: #FFFFFF; --button-color: #3B3B3B; --button-hover-color: #888888; --card-background-color: #494141; --card-border-color: #333333; --font-family: 'Microsoft YaHei', 'Segoe UI', 'WenQuanYi Micro Hei', sans-serif; }
+        body { background-color: var(--background-color); color: var(--text-color); font-family: var(--font-family); margin: 0; padding: 0; }
+        .header-container { padding: 10px 20px; flex-shrink: 0; border-bottom: 1px solid var(--card-border-color); }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .button { background-color: var(--button-color); color: var(--text-color); border: 1px solid var(--card-border-color); border-radius: 6px; padding: 8px 12px; font-size: 14px; cursor: pointer; transition: background-color 0.2s; text-decoration: none; }
+        .button:hover { background-color: var(--button-hover-color); }
+        .main-content { padding: 20px; }
+        #stats-container { display: flex; flex-direction: column; gap: 15px; }
+        .stat-item { display: flex; flex-direction: column; gap: 5px; }
+        .stat-label { font-size: 14px; word-break: break-all; }
+        .stat-bar-container { display: flex; align-items: center; gap: 10px; }
+        .stat-bar { display: flex; flex-grow: 1; height: 20px; background-color: #555; border-radius: 4px; overflow: hidden; }
+        .stat-bar-segment { height: 100%; transition: background-color 0.2s; }
+        .stat-bar-segment:hover { filter: brightness(1.2); }
+        .stat-total { font-size: 14px; font-weight: bold; min-width: 40px; text-align: right; }
+        #loading-indicator { font-size: 24px; text-align: center; padding: 50px; }
+    </style>
+</head>
+<body>
+    <div class="header-container">
+        <div class="header">
+            <a href="/" class="button">返回主页</a>
+            <h1>作品访问统计</h1>
+            <div></div>
+        </div>
+    </div>
+    <div class="main-content">
+        <div id="stats-container">
+            <div id="loading-indicator">正在加载统计数据...</div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const statsContainer = document.getElementById('stats-container');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // 定义一个颜色数组，用于分段显示
+        const COLORS = [ '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab' ];
+
+        try {
+            const response = await fetch('/api/stats');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const statsData = await response.json();
+            
+            loadingIndicator.style.display = 'none';
+
+            if (statsData.length === 0) {
+                statsContainer.innerHTML = '<p>暂无任何访问记录。</p>';
+                return;
+            }
+
+            statsData.forEach(item => {
+                const statItem = document.createElement('div');
+                statItem.className = 'stat-item';
+
+                const label = document.createElement('div');
+                label.className = 'stat-label';
+                label.textContent = item.item_key;
+
+                const barContainer = document.createElement('div');
+                barContainer.className = 'stat-bar-container';
+
+                const bar = document.createElement('div');
+                bar.className = 'stat-bar';
+
+                const total = document.createElement('div');
+                total.className = 'stat-total';
+                total.textContent = item.total_views;
+
+                // 计算所有页面访问的总和
+                let pageViewsSum = 0;
+                const pageEntries = Object.entries(item.page_views).map(([pageNum, count]) => {
+                    pageViewsSum += count;
+                    return { pageNum: parseInt(pageNum), count };
+                }).sort((a, b) => a.pageNum - b.pageNum); // 按页码排序
+
+                // 计算非页面点击（例如，仅点击卡片但未打开）的次数
+                const otherViews = item.total_views - pageViewsSum;
+
+                // 创建 "其他" 访问的片段
+                if (otherViews > 0) {
+                    const segment = document.createElement('div');
+                    segment.className = 'stat-bar-segment';
+                    segment.style.flexGrow = otherViews;
+                    segment.style.backgroundColor = '#888'; // 给一个中性的灰色
+                    segment.title = `常规访问: ${otherViews} 次`;
+                    bar.appendChild(segment);
+                }
+
+                // 创建每个页面的访问片段
+                pageEntries.forEach(({ pageNum, count }, index) => {
+                    const segment = document.createElement('div');
+                    segment.className = 'stat-bar-segment';
+                    segment.style.flexGrow = count;
+                    segment.style.backgroundColor = COLORS[index % COLORS.length]; // 循环使用颜色
+                    segment.title = `第 ${pageNum} 页: ${count} 次`;
+                    bar.appendChild(segment);
+                });
+
+                barContainer.appendChild(bar);
+                barContainer.appendChild(total);
+                statItem.appendChild(label);
+                statItem.appendChild(barContainer);
+                statsContainer.appendChild(statItem);
+            });
+
+        } catch (error) {
+            loadingIndicator.textContent = `加载统计数据失败: ${error.message}`;
+            console.error("Fetch stats error:", error);
+        }
+    });
+    </script>
+</body>
+</html>

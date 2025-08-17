@@ -42,6 +42,17 @@ def natural_sort_key(s):
     # 返回一个元组，排序时会先比较文本部分，再比较数字部分
     return (text_part, num_part)
 
+def _get_view_count(item_data):
+    """从项目数据中提取总访问次数。"""
+    for tag in item_data.get("tags", []):
+        # 寻找格式为 '*' 跟着纯数字的tag
+        if tag.startswith('*') and tag[1:].isdigit():
+            try:
+                return int(tag[1:])
+            except ValueError:
+                continue # 如果转换失败，则忽略此tag
+    return 0
+
 def load_tags(tags_file_path):
     """从指定的 JSON 文件加载标签数据。"""
     try:
@@ -191,35 +202,130 @@ def search_by_tag(root_path, cover_path, all_tags, cover_map, tag_name):
 
 # --- 新的维护功能函数 ---
 
+def get_stats_data(tags_file_path):
+    """
+    解析 tags.json 文件，提取所有项目的访问统计数据。
+    """
+    stats = []
+    all_tags_data = load_tags(tags_file_path)
+    
+    for item_key, tags in all_tags_data.items():
+        total_views = 0
+        page_views = {}
+        
+        # 寻找总访问量tag
+        total_view_tag = next((t for t in tags if t.startswith('*') and t[1:].isdigit()), None)
+        if total_view_tag:
+            total_views = int(total_view_tag[1:])
+        
+        # 寻找页面访问量tag
+        page_view_tags = [t for t in tags if t.startswith('*p')]
+        for tag in page_view_tags:
+            # 格式: *p<num>:<count>
+            match = re.match(r'\*p(\d+):(\d+)', tag)
+            if match:
+                page_num = match.group(1)
+                count = int(match.group(2))
+                page_views[page_num] = count
+        
+        # 只有在有访问记录时才添加到统计中
+        if total_views > 0 or page_views:
+            stats.append({
+                "item_key": item_key,
+                "total_views": total_views,
+                "page_views": page_views
+            })
+            
+    # 按总访问量从高到低排序
+    sorted_stats = sorted(stats, key=lambda x: x['total_views'], reverse=True)
+    return sorted_stats
+
 def save_tags(tags_file_path, tags_data):
     """将前端发来的标签数据保存到 tags.json 文件中，并进行排序。"""
     try:
         # --- 排序逻辑 ---
-        # 1. 统计每个标签在所有项目中出现的次数
         tag_counts = {}
         for tags_list in tags_data.values():
-            for tag in tags_list:
+            # 只统计非计数的普通标签
+            for tag in [t for t in tags_list if not t.startswith('*')]:
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
         
-        # 2. 根据出现次数（降序）和名称（升序）对所有标签进行全局排序
         sorted_global_tags = sorted(tag_counts.keys(), key=lambda tag: (tag_counts[tag], tag), reverse=True)
-        # 3. 创建一个从标签名到其全局排序位置的映射
         tag_order_map = {tag: i for i, tag in enumerate(sorted_global_tags)}
         
-        # 4. 遍历每个项目，根据全局排序位置对该项目的标签列表进行内部排序
         sorted_tags_data = {}
         for item_key, tags_list in tags_data.items():
             if isinstance(tags_list, list):
-                sorted_tags_for_item = sorted(tags_list, key=lambda tag: tag_order_map.get(tag, 9999))
-                sorted_tags_data[item_key] = sorted_tags_for_item
+                # 分离访问计数标签和普通标签
+                view_tags = [t for t in tags_list if t.startswith('*')]
+                normal_tags = [t for t in tags_list if not t.startswith('*')]
+                
+                # 只对普通标签进行排序
+                sorted_normal_tags = sorted(normal_tags, key=lambda tag: tag_order_map.get(tag, 9999))
+                
+                # 将访问计数标签放回列表前面，然后跟上排序后的普通标签
+                sorted_tags_data[item_key] = view_tags + sorted_normal_tags
             else:
                 sorted_tags_data[item_key] = tags_list
 
-        # 将排序后的数据写入 JSON 文件
         with open(tags_file_path, 'w', encoding='utf-8') as f:
             json.dump(sorted_tags_data, f, indent=4, ensure_ascii=False)
         return {"status": "success", "message": "Tags saved successfully."}
     except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+def update_view_count(tags_file_path, item_key, page_index=None):
+    """
+    更新指定项目或其页面的访问次数。
+    这是一个独立的、快速的读-改-写操作，不涉及复杂的排序。
+    """
+    try:
+        tags_data = load_tags(tags_file_path)
+        item_tags = tags_data.get(item_key, [])
+        
+        # 定义要查找和更新的标签前缀
+        # page_index 为 None 时，是总访问量；否则是页面访问量
+        if page_index is None:
+            # 总访问量格式: *123
+            prefix = '*'
+            view_tag_index = -1
+            for i, tag in enumerate(item_tags):
+                # 确保它是一个纯粹的数字计数标签
+                if tag.startswith(prefix) and tag[1:].isdigit():
+                    view_tag_index = i
+                    break
+            
+            if view_tag_index != -1:
+                old_tag = item_tags[view_tag_index]
+                count = int(old_tag[len(prefix):]) + 1
+                item_tags[view_tag_index] = f"{prefix}{count}"
+            else:
+                item_tags.insert(0, f"{prefix}1")
+        else:
+            # 页面访问量格式: *p1:25
+            page_num = page_index + 1
+            prefix = f'*p{page_num}:'
+            view_tag_index = -1
+            for i, tag in enumerate(item_tags):
+                if tag.startswith(prefix):
+                    view_tag_index = i
+                    break
+            
+            if view_tag_index != -1:
+                old_tag = item_tags[view_tag_index]
+                count = int(old_tag[len(prefix):]) + 1
+                item_tags[view_tag_index] = f"{prefix}{count}"
+            else:
+                item_tags.insert(0, f"{prefix}1")
+
+        tags_data[item_key] = item_tags
+        
+        with open(tags_file_path, 'w', encoding='utf-8') as f:
+            json.dump(tags_data, f, indent=4, ensure_ascii=False)
+            
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Error updating view count for '{item_key}': {e}")
         return {"status": "error", "message": str(e)}
 
 def generate_covers_logic(path_to_scan, cover_path, cover_map):
@@ -237,27 +343,22 @@ def generate_covers_logic(path_to_scan, cover_path, cover_map):
             if not dir_name.endswith('_'):
                 continue
             
-            # 从 dirs 列表中移除当前目录，防止 os.walk 进入这个特殊目录内部
             dirs.remove(dir_name)
             
             base_name = dir_name[:-1]
-            # 检查这个项目是否已经有封面了
             if find_cover_filename(cover_path, dir_name, cover_map) is None:
                 special_dir_path = os.path.join(root, dir_name)
                 try:
-                    # 获取目录内所有图片并进行自然排序
                     images = sorted(
                         [f for f in os.listdir(special_dir_path) if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS],
                         key=natural_sort_key
                     )
                     if images:
-                        # 使用第一张图片作为封面
                         first_image_name = images[0]
                         source_file = os.path.join(special_dir_path, first_image_name)
                         ext = os.path.splitext(first_image_name)[1]
                         dest_file = os.path.join(temp_cover_path, f"{base_name}{ext}")
                         
-                        # 如果临时文件夹中不存在同名文件，则复制
                         if not os.path.exists(dest_file):
                             shutil.copy2(source_file, dest_file)
                             generated_count += 1
@@ -276,22 +377,18 @@ def auto_import_tags(item_name):
     自动导入标签的核心逻辑。
     步骤：1. Google搜索 -> 2. 获取DMM链接 -> 3. Selenium打开链接 -> 4. 处理年龄确认 -> 5. BS4解析页面 -> 6. 提取Tags
     """
-    # 从环境变量加载 API 密钥
     api_key = os.getenv("SERPAPI_API_KEY")
     if not api_key:
         return {"status": "error", "message": "SERPAPI_API_KEY 环境变量未设置。"}
     
-    # 清理项目名，并构建搜索查询
     cleaned_name = item_name[:-1] if item_name.endswith('_') else item_name
     search_query = f'{cleaned_name} dmm'
     print(f"正在为 '{cleaned_name}' 自动导入Tag，搜索查询: '{search_query}'")
     
-    # --- 步骤 1 & 2: 使用 SerpApi 进行 Google 搜索并找到 DMM 链接 ---
     try:
         params = {"q": search_query, "engine": "google", "google_domain": "google.co.jp", "gl": "jp", "hl": "ja", "api_key": api_key}
         search = GoogleSearch(params)
         results = search.get_dict()
-        # 从搜索结果中找到第一个包含 "dmm" 的链接
         dmm_url = next((res["link"] for res in results.get("organic_results", []) if "dmm" in res.get("link", "")), None)
         if not dmm_url:
             return {"status": "error", "message": "在搜索结果首页未找到 dmm 的链接。"}
@@ -299,9 +396,8 @@ def auto_import_tags(item_name):
     except Exception as e:
         return {"status": "error", "message": f"Google搜索阶段出错: {e}"}
 
-    # --- 步骤 3: 设置并启动 Selenium 无头浏览器 ---
     options = Options()
-    options.add_argument("--headless") # 使用无头模式，不在桌面显示浏览器窗口
+    options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     driver = None
@@ -310,11 +406,9 @@ def auto_import_tags(item_name):
         driver = webdriver.Chrome(service=service, options=options)
         driver.get(dmm_url)
 
-        # --- 步骤 4: 处理年龄确认弹窗/页面（新逻辑：尝试处理两种按钮） ---
         print("正在检查是否存在年龄确认或'OFF'按钮...")
         confirmation_handled = False
 
-        # 逻辑1：优先尝试处理“はい”按钮
         try:
             age_check_button = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, 'age_check')][contains(., 'はい')]"))
@@ -335,17 +429,13 @@ def auto_import_tags(item_name):
         except TimeoutException:
             print("未在5秒内找到'はい'按钮，接下来检查'OFF'按钮。")
 
-        # 逻辑2：如果“はい”按钮未被处理，则尝试处理“OFF”按钮
         if not confirmation_handled:
             try:
                 off_switch = WebDriverWait(driver, 5).until(
                     EC.element_to_be_clickable((By.XPATH, "//div[./span[text()='OFF']]"))
                 )
                 print("发现'OFF'切换按钮，正在点击...")
-                # 使用 JavaScript 执行点击操作，确保即使按钮被覆盖也能触发
                 driver.execute_script("arguments[0].click();", off_switch)
-
-
                 confirmation_handled = True
                 print("'OFF'按钮处理完毕。")
             except TimeoutException:
@@ -354,27 +444,21 @@ def auto_import_tags(item_name):
         if not confirmation_handled:
             print("最终未发现任何需要处理的确认按钮，将直接继续。")
 
-        # --- 步骤 5: 等待最终页面加载完成 ---
         print("等待最终页面内容加载...")
-        # 定义两种可能的页面加载完成的标志：商业作品页面或同人作品页面
         commercial_page_loaded = EC.presence_of_element_located((By.XPATH, "//h2[contains(text(), '作品詳細')]"))
         doujin_page_loaded = EC.presence_of_element_located((By.CSS_SELECTOR, ".author a, .informationList"))
-        # 等待任意一个标志出现，最长等待20秒
         WebDriverWait(driver, 20).until(EC.any_of(commercial_page_loaded, doujin_page_loaded))
         print("最终页面关键元素已加载。")
         
-        # --- 步骤 6: 使用 BeautifulSoup 解析页面内容并提取 Tags ---
         page_source = driver.page_source
         soup = BeautifulSoup(page_source, 'html.parser')
         found_tags = set()
 
-        # 根据当前页面的 URL 判断是同人作品还是商业作品，使用不同的解析逻辑
         if "/doujin/" in driver.current_url:
             print("解析 Doujin 页面...")
             found_tags.add("同人")
             author_icon = soup.select_one('span[class*="author"]')
             if author_icon:
-                # 2. 如果找到，就获取它后面的 a 标签
                 author_tag = author_icon.find_next_sibling('a')
             if author_tag:
                 author_name = author_tag.get_text(strip=True)
@@ -382,7 +466,6 @@ def auto_import_tags(item_name):
                 print(f"找到作者: {author_name}")
             else:
                 print("警告: 未能定位到作者。")
-            # 提取年份
             info_texts = soup.select('.informationList__txt')
             for txt in info_texts:
                 if match := re.search(r'(\d{4})/\d{2}/\d{2}', txt.get_text()):
@@ -390,7 +473,6 @@ def auto_import_tags(item_name):
                     break
         else:
             print("解析商业作品页面...")
-            # 找到“作品詳細”这个标题，并从它的父容器开始查找信息
             details_header = soup.find('h2', string=re.compile(r'^\s*作品詳細\s*$'))
             if details_header:
                 details_section = details_header.find_parent()
@@ -399,7 +481,6 @@ def auto_import_tags(item_name):
                     label_tag = item.find('dt'); data_tag = item.find('dd')
                     if not (label_tag and data_tag): continue
                     label_text = label_tag.get_text(strip=True)
-                    # 根据标签文本提取作家、出版社、年份、类别等信息
                     if "作家" == label_text:
                         if author_link := data_tag.find('a'): found_tags.add(author_link.get_text(strip=True))
                     elif "掲載誌・レーベル" == label_text:
@@ -410,7 +491,7 @@ def auto_import_tags(item_name):
                         if category_link := data_tag.find('a'): 
                             text = category_link.get_text(strip=True)[:2]
                             if text == "アダ": text = "成人"
-                            found_tags.add(text) # 取类别前两个字
+                            found_tags.add(text)
             else:
                 print("警告：在最终页面中仍未找到 '作品詳細' 标题。")
 
@@ -421,6 +502,5 @@ def auto_import_tags(item_name):
         print(f"Selenium抓取过程中发生错误: {e}")
         return {"status": "error", "message": f"Selenium抓取失败: {e}"}
     finally:
-        # 确保无论成功还是失败，最后都关闭浏览器驱动，释放资源
         if driver:
             driver.quit()

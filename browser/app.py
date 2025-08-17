@@ -50,6 +50,8 @@ print(f"--- 已成功載入 {len(cover_map)} 條封面映射規則 ---")
 
 # --- 线程锁 ---
 auto_import_lock = threading.Lock()
+# 为 view count 更新添加一个新的锁，防止并发写入 tags.json 导致文件损坏
+view_count_lock = threading.Lock()
 
 # --- 辅助函数 ---
 def get_paths_for_mode(mode):
@@ -169,14 +171,43 @@ def api_open_folder():
 
 # --- 新的维护功能 API 端点 ---
 
+@app.route('/api/stats')
+def api_stats():
+    """API端点：获取所有项目的访问统计数据。"""
+    stats_data = logic.get_stats_data(TAGS_FILE_PATH)
+    return jsonify(stats_data)
+
+@app.route('/api/record_view', methods=['POST'])
+def api_record_view():
+    """API端点：记录一个项目或页面的访问。"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "error", "message": "Invalid request: Content-Type must be application/json."}), 400
+
+    item_key = data.get('item_key')
+    # page_index 可以是 None, 0, 1, 2...
+    page_index = data.get('page_index')
+
+    if not item_key:
+        return jsonify({"status": "error", "message": "item_key is required"}), 400
+
+    # 使用锁来确保文件写入操作的原子性，防止数据损坏
+    with view_count_lock:
+        result = logic.update_view_count(TAGS_FILE_PATH, item_key, page_index)
+    
+    # 如果更新成功，则重新加载内存中的 all_tags 变量，以保持数据同步
+    if result['status'] == 'success':
+        global all_tags
+        all_tags = logic.load_tags(TAGS_FILE_PATH)
+
+    return jsonify(result)
+
 @app.route('/api/auto_import_tags', methods=['POST'])
 def api_auto_import_tags():
     """API端点：触发基于项目名称的自动Tag导入（调用爬虫逻辑）。"""
     if not auto_import_lock.acquire(blocking=False):
-    # 如果无法获取锁，说明有其他导入操作正在进行
         return jsonify({"status": "error", "message": "另一个导入操作正在进行，请稍后再试。"}), 429
     try:
-        # 确保请求是 JSON 格式
         if not request.is_json:
             return jsonify({"status": "error", "message": "请求必须是JSON格式。"}), 400
         
@@ -186,38 +217,31 @@ def api_auto_import_tags():
         if not item_name:
             return jsonify({"status": "error", "message": "未提供 'item_name'。"}), 400
 
-        # 调用后端的爬虫和解析逻辑
         result = logic.auto_import_tags(item_name)
         
-        # 根据后端逻辑的返回结果，向前台返回成功或失败的响应
         if result['status'] == 'success':
             return jsonify(result)
         else:
             return jsonify(result), 500
     finally:
-        # 确保在操作完成后释放锁
         auto_import_lock.release()
 
 @app.route('/api/tags', methods=['GET', 'POST'])
 def api_tags():
     """API端点：用于获取和保存标签数据。"""
-    global all_tags # 声明我们将要修改全局变量 all_tags
+    global all_tags
     
-    # 如果是 GET 请求，直接返回当前内存中的所有标签
     if request.method == 'GET':
         return jsonify(all_tags)
     
-    # 如果是 POST 请求，用于保存新的标签数据
     if request.method == 'POST':
         if not request.is_json:
             return jsonify({"status": "error", "message": "Invalid request: Content-Type must be application/json."}), 400
         
         new_tags_data = request.get_json()
-        # 调用后端逻辑函数，将新数据保存到 tags.json 文件
         result = logic.save_tags(TAGS_FILE_PATH, new_tags_data)
         
         if result['status'] == 'success':
-            # 保存成功后，重新从文件加载标签到内存，确保数据同步
             all_tags = logic.load_tags(TAGS_FILE_PATH)
             print(f"--- 已成功保存並重新載入 {len(all_tags)} 個項目的標籤 ---")
             return jsonify(result)
@@ -236,22 +260,18 @@ def api_generate_covers():
 
     root_path, cover_path = get_paths_for_mode(mode)
 
-    # 安全检查
     if not current_path or not is_safe_path(root_path, current_path):
          return jsonify({"status": "error", "message": "Invalid or unsafe path provided."}), 400
 
-    # 定义一个工作函数，将在新线程中执行
     def worker():
         print(f"--- 開始生成封面，掃描路徑: {current_path} ---")
         result = logic.generate_covers_logic(current_path, cover_path, cover_map)
         print(f"--- 封面生成完畢: {result['generated_count']} 個新封面。 臨時目錄: {result['temp_path']} ---")
 
-    # 创建并启动一个守护线程来执行封面生成，这样API可以立即返回，不会阻塞
     thread = threading.Thread(target=worker)
     thread.daemon = True
     thread.start()
 
-    # 立即返回响应，告知前端任务已在后台开始
     return jsonify({
         "status": "started", 
         "message": "Cover generation process has been started in the background. Check the server console for completion status."
@@ -262,6 +282,12 @@ def api_generate_covers():
 def index():
     """主页路由，渲染并返回 index.html 前端页面。"""
     return render_template('index.html')
+
+@app.route('/stats')
+def stats_page():
+    """统计页面路由，渲染 stats.html。"""
+    return render_template('stats.html')
+
 
 # --- 程序入口 ---
 if __name__ == '__main__':
