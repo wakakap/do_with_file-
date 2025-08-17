@@ -42,17 +42,6 @@ def natural_sort_key(s):
     # 返回一个元组，排序时会先比较文本部分，再比较数字部分
     return (text_part, num_part)
 
-def _get_view_count(item_data):
-    """从项目数据中提取总访问次数。"""
-    for tag in item_data.get("tags", []):
-        # 寻找格式为 '*' 跟着纯数字的tag
-        if tag.startswith('*') and tag[1:].isdigit():
-            try:
-                return int(tag[1:])
-            except ValueError:
-                continue # 如果转换失败，则忽略此tag
-    return 0
-
 def load_tags(tags_file_path):
     """从指定的 JSON 文件加载标签数据。"""
     try:
@@ -504,3 +493,96 @@ def auto_import_tags(item_name):
     finally:
         if driver:
             driver.quit()
+
+def get_structured_stats_data(tags_file_path, item_key_map, manga_root_path, jav_root_path):
+    """
+    根据文件结构组织和聚合访问统计数据。(V8 - 简化了处理流程)
+    """
+    try:
+        # --- 简化开始: 将两个循环合并为一个 ---
+        
+        flat_stats = get_stats_data(tags_file_path)
+        structured_data = {}
+
+        for item in flat_stats:
+            item_key = item['item_key']
+            
+            # 步骤 1: 直接在这里计算聚合视图
+            label_views = item['total_views']
+            page_views = item.get('page_views', {})
+            sum_of_all_page_views = sum(page_views.values())
+            aggregation_views = label_views + sum_of_all_page_views
+
+            # 步骤 2: 构建子项（用于下钻视图）
+            sub_children = None
+            if page_views or label_views > 0:
+                sub_children = []
+                if page_views:
+                    sorted_pages = sorted([(int(k), v) for k, v in page_views.items()], key=lambda x: x[1], reverse=True)
+                    sub_children.extend([{"name": f"P{p}", "views": v} for p, v in sorted_pages])
+                if label_views > 0:
+                    sub_children.append({"name": "点开而已", "views": label_views})
+
+            # 步骤 3: 查找路径并构建树状结构 (原第二个循环的逻辑)
+            full_path = item_key_map.get(item_key)
+            if not full_path: continue
+
+            root_path = None
+            if full_path.startswith(manga_root_path): root_path = manga_root_path
+            elif full_path.startswith(jav_root_path): root_path = jav_root_path
+            if not root_path: continue
+
+            is_a_directory = os.path.isdir(full_path)
+            is_gallery_folder = is_a_directory and item_key.endswith('_')
+            item_type = "item" if not is_a_directory or is_gallery_folder else "directory"
+            relative_path = os.path.relpath(full_path, root_path)
+            path_parts = relative_path.replace('\\', '/').split('/')
+            
+            item_object_data = {
+                "name": item_key,
+                "type": item_type,
+                "total_views": label_views, # 保留原始的常规访问量
+                "aggregation_views": aggregation_views # 使用聚合后的总访问量
+            }
+            if sub_children:
+                item_object_data["sub_children"] = sub_children
+
+            # 使用与之前相同的核心修复逻辑来构建树
+            if len(path_parts) == 1:
+                group_name = os.path.basename(full_path)
+                if group_name not in structured_data:
+                    structured_data[group_name] = item_object_data
+                else:
+                    children_backup = structured_data[group_name].get("children")
+                    structured_data[group_name].update(item_object_data)
+                    if children_backup is not None:
+                        structured_data[group_name]["children"] = children_backup
+                
+                if structured_data[group_name]['type'] == 'directory' and 'children' not in structured_data[group_name]:
+                    structured_data[group_name]['children'] = []
+            else:
+                group_name = path_parts[0]
+                if group_name not in structured_data:
+                    structured_data[group_name] = {"name": group_name, "type": "directory", "children": [], "aggregation_views": 0}
+                
+                structured_data[group_name]["children"].append(item_object_data)
+
+        # 步骤 4: 计算父文件夹的总和，并排序 (逻辑不变)
+        final_result = list(structured_data.values())
+        for item in final_result:
+            if item.get("type") == "directory":
+                children = item.get("children", [])
+                # 累加子项的 aggregation_views
+                item["aggregation_views"] = sum(child.get('aggregation_views', 0) for child in children)
+                if children:
+                    children.sort(key=lambda x: x.get("aggregation_views", 0), reverse=True)
+        
+        final_result.sort(key=lambda x: x.get("aggregation_views", 0), reverse=True)
+        
+        return final_result
+
+    except Exception as e:
+        print(f"!!!!!! 在 get_structured_stats_data 中发生严重错误 !!!!!!")
+        import traceback
+        traceback.print_exc()
+        return []

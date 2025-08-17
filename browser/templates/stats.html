@@ -5,21 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>访问统计</title>
     <style>
-        :root { --background-color: #242424; --text-color: #FFFFFF; --button-color: #3B3B3B; --button-hover-color: #888888; --card-background-color: #494141; --card-border-color: #333333; --font-family: 'Microsoft YaHei', 'Segoe UI', 'WenQuanYi Micro Hei', sans-serif; }
+        :root {
+            --background-color: #242424;
+            --text-color: #FFFFFF;
+            --button-color: #3B3B3B;
+            --button-hover-color: #888888;
+            --card-border-color: #333333;
+            --font-family: 'Microsoft YaHei', 'Segoe UI', 'WenQuanYi Micro Hei', sans-serif;
+        }
         body { background-color: var(--background-color); color: var(--text-color); font-family: var(--font-family); margin: 0; padding: 0; }
         .header-container { padding: 10px 20px; flex-shrink: 0; border-bottom: 1px solid var(--card-border-color); }
         .header { display: flex; justify-content: space-between; align-items: center; }
         .button { background-color: var(--button-color); color: var(--text-color); border: 1px solid var(--card-border-color); border-radius: 6px; padding: 8px 12px; font-size: 14px; cursor: pointer; transition: background-color 0.2s; text-decoration: none; }
         .button:hover { background-color: var(--button-hover-color); }
         .main-content { padding: 20px; }
-        #stats-container { display: flex; flex-direction: column; gap: 15px; }
-        .stat-item { display: flex; flex-direction: column; gap: 5px; }
-        .stat-label { font-size: 14px; word-break: break-all; }
-        .stat-bar-container { display: flex; align-items: center; gap: 10px; }
-        .stat-bar { display: flex; flex-grow: 1; height: 20px; background-color: #555; border-radius: 4px; overflow: hidden; }
-        .stat-bar-segment { height: 100%; transition: background-color 0.2s; }
+        #stats-container { display: flex; flex-direction: column; gap: 20px; }
+        .stat-item { display: flex; flex-direction: column; gap: 8px; }
+        .stat-label { font-size: 16px; font-weight: bold; word-break: break-all; margin-left: 5px; }
+        .stat-bar-wrapper { display: flex; align-items: center; gap: 10px; }
+        .stat-bar-container { flex-grow: 1; }
+        .stat-bar { display: flex; width: 100%; height: 28px; background-color: #3a3a3a; border-radius: 5px; overflow: hidden; align-items: center; }
+        .stat-bar-segment {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            overflow: hidden;
+            transition: filter 0.2s;
+            position: relative;
+        }
         .stat-bar-segment:hover { filter: brightness(1.2); }
-        .stat-total { font-size: 14px; font-weight: bold; min-width: 40px; text-align: right; }
+        .segment-label {
+            padding: 0 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+        .stat-total { font-size: 16px; font-weight: bold; min-width: 50px; text-align: right; }
         #loading-indicator { font-size: 24px; text-align: center; padding: 50px; }
     </style>
 </head>
@@ -27,7 +52,7 @@
     <div class="header-container">
         <div class="header">
             <a href="/" class="button">返回主页</a>
-            <h1>作品访问统计</h1>
+            <h1>作品访问统计 (按目录聚合)</h1>
             <div></div>
         </div>
     </div>
@@ -41,12 +66,64 @@
     document.addEventListener('DOMContentLoaded', async () => {
         const statsContainer = document.getElementById('stats-container');
         const loadingIndicator = document.getElementById('loading-indicator');
+        const COLORS = ['#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'];
 
-        // 定义一个颜色数组，用于分段显示
-        const COLORS = [ '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab' ];
+        // --- 渲染函数 ---
+
+        function renderDrillDownView(barElement, itemData) {
+            barElement.innerHTML = ''; // 清空
+            itemData.sub_children.forEach((sub, subIndex) => {
+                const subSegment = document.createElement('div');
+                subSegment.className = 'stat-bar-segment';
+                subSegment.style.flexGrow = sub.views;
+                subSegment.style.backgroundColor = COLORS[subIndex % COLORS.length];
+                subSegment.title = `${sub.name}: ${sub.views} 次`;
+
+                const subLabel = document.createElement('span');
+                subLabel.className = 'segment-label';
+                subLabel.textContent = `${sub.name} (${sub.views})`;
+
+                subSegment.appendChild(subLabel);
+                barElement.appendChild(subSegment);
+            });
+        }
+
+        function renderNormalView(barElement, sourceData) {
+            barElement.innerHTML = ''; // 清空
+            sourceData.forEach((child, index) => {
+                const segment = document.createElement('div');
+                segment.className = 'stat-bar-segment';
+                segment.style.flexGrow = child.aggregation_views;
+                segment.style.backgroundColor = COLORS[index % COLORS.length];
+                
+                // --- 修改点在这里 ---
+                // 旧代码: segment.title = `${child.name}: ${child.total_views} 次`;
+                // 新代码: 使用 aggregation_views，与宽度和总数保持一致
+                segment.title = `${child.name}: ${child.aggregation_views} 次`;
+
+                const segmentLabel = document.createElement('span');
+                segmentLabel.className = 'segment-label';
+
+                // --- 修改点也在这里 ---
+                // 旧代码: segmentLabel.textContent = `${child.name} (${child.total_views})`;
+                // 新代码:
+                segmentLabel.textContent = `${child.name} (${child.aggregation_views})`;
+                
+                segment.appendChild(segmentLabel);
+
+                if (child.sub_children && child.sub_children.length > 1) {
+                    segment.style.cursor = 'pointer';
+                    segment.addEventListener('mouseenter', () => renderDrillDownView(barElement, child));
+                }
+                
+                barElement.appendChild(segment);
+            });
+        }
+
+        // --- 主逻辑 ---
 
         try {
-            const response = await fetch('/api/stats');
+            const response = await fetch('/api/structured_stats');
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const statsData = await response.json();
             
@@ -57,58 +134,48 @@
                 return;
             }
 
+            const maxAggregationViews = Math.max(...statsData.map(item => item.aggregation_views || 0));
+            if (maxAggregationViews === 0) return;
+
             statsData.forEach(item => {
                 const statItem = document.createElement('div');
                 statItem.className = 'stat-item';
 
                 const label = document.createElement('div');
                 label.className = 'stat-label';
-                label.textContent = item.item_key;
+                label.textContent = item.name;
 
+                const barWrapper = document.createElement('div');
+                barWrapper.className = 'stat-bar-wrapper';
+                
                 const barContainer = document.createElement('div');
                 barContainer.className = 'stat-bar-container';
+                const barWidthPercentage = (item.aggregation_views / maxAggregationViews) * 100;
+                barContainer.style.width = `${barWidthPercentage}%`;
 
                 const bar = document.createElement('div');
                 bar.className = 'stat-bar';
 
                 const total = document.createElement('div');
                 total.className = 'stat-total';
-                total.textContent = item.total_views;
+                
+                // Bug Fix 2: 统一显示代表宽度的 aggregation_views
+                total.textContent = item.aggregation_views || 0;
+                
+                const sourceData = item.type === 'directory' ? item.children : [item];
 
-                // 计算所有页面访问的总和
-                let pageViewsSum = 0;
-                const pageEntries = Object.entries(item.page_views).map(([pageNum, count]) => {
-                    pageViewsSum += count;
-                    return { pageNum: parseInt(pageNum), count };
-                }).sort((a, b) => a.pageNum - b.pageNum); // 按页码排序
-
-                // 计算非页面点击（例如，仅点击卡片但未打开）的次数
-                const otherViews = item.total_views - pageViewsSum;
-
-                // 创建 "其他" 访问的片段
-                if (otherViews > 0) {
-                    const segment = document.createElement('div');
-                    segment.className = 'stat-bar-segment';
-                    segment.style.flexGrow = otherViews;
-                    segment.style.backgroundColor = '#888'; // 给一个中性的灰色
-                    segment.title = `常规访问: ${otherViews} 次`;
-                    bar.appendChild(segment);
-                }
-
-                // 创建每个页面的访问片段
-                pageEntries.forEach(({ pageNum, count }, index) => {
-                    const segment = document.createElement('div');
-                    segment.className = 'stat-bar-segment';
-                    segment.style.flexGrow = count;
-                    segment.style.backgroundColor = COLORS[index % COLORS.length]; // 循环使用颜色
-                    segment.title = `第 ${pageNum} 页: ${count} 次`;
-                    bar.appendChild(segment);
-                });
+                // Bug Fix 1: 无条件为所有 bar 添加数据源和 mouseleave 事件
+                bar.sourceData = sourceData;
+                bar.addEventListener('mouseleave', () => renderNormalView(bar, bar.sourceData));
+                
+                // 初始渲染
+                renderNormalView(bar, sourceData);
 
                 barContainer.appendChild(bar);
-                barContainer.appendChild(total);
+                barWrapper.appendChild(barContainer);
+                barWrapper.appendChild(total);
                 statItem.appendChild(label);
-                statItem.appendChild(barContainer);
+                statItem.appendChild(barWrapper);
                 statsContainer.appendChild(statItem);
             });
 

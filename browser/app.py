@@ -40,19 +40,6 @@ app = Flask(__name__)
 # 配置 Flask 返回的 JSON 不使用 ASCII 编码，以正确显示中文等字符
 app.config['JSON_AS_ASCII'] = False
 
-# --- 全局数据加载 ---
-# 在应用启动时，一次性从文件加载所有标签和封面映射规则到内存中
-all_tags = logic.load_tags(TAGS_FILE_PATH)
-cover_map = logic.load_cover_map(MAP_FILE_PATH)
-print("--- 應用程式啟動 ---")
-print(f"--- 已成功載入 {len(all_tags)} 個項目的標籤 ---")
-print(f"--- 已成功載入 {len(cover_map)} 條封面映射規則 ---")
-
-# --- 线程锁 ---
-auto_import_lock = threading.Lock()
-# 为 view count 更新添加一个新的锁，防止并发写入 tags.json 导致文件损坏
-view_count_lock = threading.Lock()
-
 # --- 辅助函数 ---
 def get_paths_for_mode(mode):
     """根据前端请求的模式（'JAV' 或 'MANGA'），返回对应的内容和封面路径。"""
@@ -66,6 +53,44 @@ def is_safe_path(base_path, requested_path):
     abs_req = os.path.realpath(requested_path)
     # 检查请求路径是否以基础路径开头
     return abs_req.startswith(abs_base)
+
+def build_item_key_map(*paths_to_scan):
+    """
+    启动时扫描指定目录，构建一个从 item_key (无扩展名的文件名) 到其完整路径的映射。
+    (V2 - 修正了 `_` 结尾文件夹被错误过滤的问题)
+    """
+    print("--- 正在建立文件名到路径的映射... ---")
+    key_map = {}
+    for path in paths_to_scan:
+        for root, dirs, files in os.walk(path):
+            # 1. 首先，使用原始的 dirs 列表，处理当前目录下的所有文件和文件夹
+            #    确保 _ 结尾的文件夹能被正确地添加到 key_map 中。
+            for name in files + dirs:
+                item_key = os.path.splitext(name)[0]
+                if item_key not in key_map: # 避免重复，保留第一次找到的
+                    key_map[item_key] = os.path.join(root, name)
+            
+            # 2. 然后，再修改 dirs 列表（就地修改），告诉 os.walk 下一步不要进入_结尾的文件夹。
+            #    这样既能映射到 _ 文件夹本身，又能实现优化。
+            dirs[:] = [d for d in dirs if not d.endswith('_')]
+
+    print(f"--- 映射建立完毕，共找到 {len(key_map)} 个唯一项目。 ---")
+    return key_map
+
+# --- 全局数据加载 ---
+
+# 在应用启动时，一次性从文件加载所有标签和封面映射规则到内存中
+all_tags = logic.load_tags(TAGS_FILE_PATH)
+cover_map = logic.load_cover_map(MAP_FILE_PATH)
+ITEM_KEY_TO_PATH_MAP = build_item_key_map(MANGA_PAGES_PATH, JAV_PAGES_PATH)
+print("--- 應用程式啟動 ---")
+print(f"--- 已成功載入 {len(all_tags)} 個項目的標籤 ---")
+print(f"--- 已成功載入 {len(cover_map)} 條封面映射規則 ---")
+
+# --- 线程锁 ---
+auto_import_lock = threading.Lock()
+# 为 view count 更新添加一个新的锁，防止并发写入 tags.json 导致文件损坏
+view_count_lock = threading.Lock()
 
 # --- API 路由 ---
 
@@ -175,6 +200,17 @@ def api_open_folder():
 def api_stats():
     """API端点：获取所有项目的访问统计数据。"""
     stats_data = logic.get_stats_data(TAGS_FILE_PATH)
+    return jsonify(stats_data)
+
+@app.route('/api/structured_stats')
+def api_structured_stats():
+    """API端点：获取按文件结构组织的访问统计数据。"""
+    stats_data = logic.get_structured_stats_data(
+        TAGS_FILE_PATH, 
+        ITEM_KEY_TO_PATH_MAP, 
+        MANGA_PAGES_PATH, 
+        JAV_PAGES_PATH
+    )
     return jsonify(stats_data)
 
 @app.route('/api/record_view', methods=['POST'])
