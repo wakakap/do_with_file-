@@ -52,7 +52,7 @@
     <div class="header-container">
         <div class="header">
             <a href="/" class="button">返回主页</a>
-            <h1>作品访问统计 (按目录聚合)</h1>
+            <h1>作品访问统计</h1>
             <div></div>
         </div>
     </div>
@@ -72,10 +72,14 @@
 
         function renderDrillDownView(barElement, itemData) {
             barElement.innerHTML = ''; // 清空
-            itemData.sub_children.forEach((sub, subIndex) => {
+
+            // --- 新增代码：截取排序后的前30个子区域 ---
+            const limitedSubChildren = itemData.sub_children.slice(0, 25);
+
+            limitedSubChildren.forEach((sub, subIndex) => { // 使用截取后的数组
                 const subSegment = document.createElement('div');
                 subSegment.className = 'stat-bar-segment';
-                subSegment.style.flexGrow = sub.views;
+                subSegment.style.flex = `${sub.views} 1 0%`;
                 subSegment.style.backgroundColor = COLORS[subIndex % COLORS.length];
                 subSegment.title = `${sub.name}: ${sub.views} 次`;
 
@@ -90,25 +94,18 @@
 
         function renderNormalView(barElement, sourceData) {
             barElement.innerHTML = ''; // 清空
-            sourceData.forEach((child, index) => {
+            // --- 新增代码：截取排序后的前30个子区域 ---
+            const limitedSourceData = sourceData.slice(0, 25);
+            limitedSourceData.forEach((child, index) => { // 使用截取后的数组
                 const segment = document.createElement('div');
                 segment.className = 'stat-bar-segment';
-                segment.style.flexGrow = child.aggregation_views;
+                segment.style.flex = `${child.aggregation_views} 1 0%`;
                 segment.style.backgroundColor = COLORS[index % COLORS.length];
-                
-                // --- 修改点在这里 ---
-                // 旧代码: segment.title = `${child.name}: ${child.total_views} 次`;
-                // 新代码: 使用 aggregation_views，与宽度和总数保持一致
                 segment.title = `${child.name}: ${child.aggregation_views} 次`;
 
                 const segmentLabel = document.createElement('span');
                 segmentLabel.className = 'segment-label';
-
-                // --- 修改点也在这里 ---
-                // 旧代码: segmentLabel.textContent = `${child.name} (${child.total_views})`;
-                // 新代码:
                 segmentLabel.textContent = `${child.name} (${child.aggregation_views})`;
-                
                 segment.appendChild(segmentLabel);
 
                 if (child.sub_children && child.sub_children.length > 1) {
@@ -134,9 +131,6 @@
                 return;
             }
 
-            const maxAggregationViews = Math.max(...statsData.map(item => item.aggregation_views || 0));
-            if (maxAggregationViews === 0) return;
-
             statsData.forEach(item => {
                 const statItem = document.createElement('div');
                 statItem.className = 'stat-item';
@@ -150,8 +144,6 @@
                 
                 const barContainer = document.createElement('div');
                 barContainer.className = 'stat-bar-container';
-                const barWidthPercentage = (item.aggregation_views / maxAggregationViews) * 100;
-                barContainer.style.width = `${barWidthPercentage}%`;
 
                 const bar = document.createElement('div');
                 bar.className = 'stat-bar';
