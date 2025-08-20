@@ -23,6 +23,20 @@ CHROMEDRIVER_PATH = "E:\\下载\\picture\\chromedriver.exe"
 IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
 
 # --- 辅助函数 ---
+def is_gallery(directory_path):
+    """
+    检查目录是否包含至少一张图片，从而判断其是否为画廊。
+    """
+    if not os.path.isdir(directory_path):
+        return False
+    try:
+        for item_name in os.listdir(directory_path):
+            if os.path.splitext(item_name)[1].lower() in IMAGE_EXTENSIONS:
+                return True
+    except OSError:
+        return False
+    return False
+
 def natural_sort_key(s):
     """
     提供自然排序的键。例如，可以正确地将 "item 2" 排在 "item 10" 之前。
@@ -118,7 +132,7 @@ def _create_item_data(full_path, root_path, cover_path, all_tags, cover_map):
         "full_path": full_path,
         "media_path": media_path.replace('\\', '/'), # 统一路径分隔符为'/'
         "is_dir": is_dir,
-        "is_special_dir": is_dir and item_name.endswith('_'), # 以'_'结尾的目录是特殊目录（画廊）
+        "is_gallery": is_dir and is_gallery(full_path), # NEW: 检查是否是画廊
         "tags": all_tags.get(name_no_ext, []), # 从内存中的标签数据获取标签
         "cover_filename": find_cover_filename(cover_path, name_no_ext, cover_map) # 查找封面
     }
@@ -138,7 +152,7 @@ def get_directory_items(current_path, root_path, cover_path, all_tags, cover_map
         return {"error": str(e)}
 
 def get_gallery_images(gallery_path):
-    """获取特殊目录（画廊）内的所有图片文件，并进行自然排序。"""
+    """获取画廊目录内的所有图片文件，并进行自然排序。"""
     try:
         all_files = os.listdir(gallery_path)
         # 筛选出图片文件
@@ -167,8 +181,8 @@ def search_all(root_path, cover_path, all_tags, cover_map, keyword):
                 if keyword_lower in tag.lower():
                     found_paths.add(os.path.join(root, item_name))
                     break
-        # 优化：不进入特殊目录（画廊）内部进行搜索，因为它们被视为一个整体
-        dirs[:] = [d for d in dirs if not d.endswith('_')]
+        # 优化：不进入画廊目录内部进行搜索，因为它们被视为一个整体
+        dirs[:] = [d for d in dirs if not is_gallery(os.path.join(root, d))]
     # 将找到的路径转换为标准项目数据格式并排序
     results = [_create_item_data(p, root_path, cover_path, all_tags, cover_map) for p in sorted(list(found_paths), key=lambda p: natural_sort_key(os.path.basename(p)))]
     return results
@@ -185,7 +199,8 @@ def search_by_tag(root_path, cover_path, all_tags, cover_map, tag_name):
             item_key = os.path.splitext(item_name)[0]
             if item_key in tagged_item_keys:
                 found_paths.add(os.path.join(root, item_name))
-        dirs[:] = [d for d in dirs if not d.endswith('_')]
+        # 优化：不进入画廊目录
+        dirs[:] = [d for d in dirs if not is_gallery(os.path.join(root, d))]
     results = [_create_item_data(p, root_path, cover_path, all_tags, cover_map) for p in sorted(list(found_paths), key=lambda p: natural_sort_key(os.path.basename(p)))]
     return results
 
@@ -319,8 +334,8 @@ def update_view_count(tags_file_path, item_key, page_index=None):
 
 def generate_covers_logic(path_to_scan, cover_path, cover_map):
     """
-    扫描指定路径，为没有封面的特殊目录（以'_'结尾）生成封面。
-    它会复制特殊目录中的第一张图片到一个临时文件夹中。
+    扫描指定路径，为没有封面的画廊目录生成封面。
+    它会复制画廊目录中的第一张图片到一个临时文件夹中。
     """
     temp_cover_path = os.path.join(cover_path, "temp_generated_covers")
     os.makedirs(temp_cover_path, exist_ok=True) # 确保临时目录存在
@@ -328,23 +343,27 @@ def generate_covers_logic(path_to_scan, cover_path, cover_map):
     errors = []
 
     for root, dirs, _ in os.walk(path_to_scan):
+        # 创建一个副本进行迭代，以便安全地修改原始列表
         for dir_name in list(dirs):
-            if not dir_name.endswith('_'):
+            gallery_dir_path = os.path.join(root, dir_name)
+            # NEW: 使用 is_gallery 函数进行判断
+            if not is_gallery(gallery_dir_path):
                 continue
             
+            # 这是一个画廊，阻止 os.walk 进入其内部
             dirs.remove(dir_name)
             
-            base_name = dir_name[:-1]
-            if find_cover_filename(cover_path, dir_name, cover_map) is None:
-                special_dir_path = os.path.join(root, dir_name)
+            base_name = dir_name # NEW: base_name 就是目录名本身
+            # 使用 base_name 查找封面
+            if find_cover_filename(cover_path, base_name, cover_map) is None:
                 try:
                     images = sorted(
-                        [f for f in os.listdir(special_dir_path) if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS],
+                        [f for f in os.listdir(gallery_dir_path) if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS],
                         key=natural_sort_key
                     )
                     if images:
                         first_image_name = images[0]
-                        source_file = os.path.join(special_dir_path, first_image_name)
+                        source_file = os.path.join(gallery_dir_path, first_image_name)
                         ext = os.path.splitext(first_image_name)[1]
                         dest_file = os.path.join(temp_cover_path, f"{base_name}{ext}")
                         
@@ -352,7 +371,7 @@ def generate_covers_logic(path_to_scan, cover_path, cover_map):
                             shutil.copy2(source_file, dest_file)
                             generated_count += 1
                 except Exception as e:
-                    errors.append(f"Error processing '{special_dir_path}': {e}")
+                    errors.append(f"Error processing '{gallery_dir_path}': {e}")
     
     return {
         "status": "completed",
@@ -370,9 +389,9 @@ def auto_import_tags(item_name):
     if not api_key:
         return {"status": "error", "message": "SERPAPI_API_KEY 环境变量未设置。"}
     
-    cleaned_name = item_name[:-1] if item_name.endswith('_') else item_name
-    search_query = f'{cleaned_name} dmm'
-    print(f"正在为 '{cleaned_name}' 自动导入Tag，搜索查询: '{search_query}'")
+    # NEW: item_name 不再需要清理末尾的 '_'
+    search_query = f'{item_name} dmm'
+    print(f"正在为 '{item_name}' 自动导入Tag，搜索查询: '{search_query}'")
     
     try:
         params = {"q": search_query, "engine": "google", "google_domain": "google.co.jp", "gl": "jp", "hl": "ja", "api_key": api_key}
@@ -533,7 +552,8 @@ def get_structured_stats_data(tags_file_path, item_key_map, manga_root_path, jav
             if not root_path: continue
 
             is_a_directory = os.path.isdir(full_path)
-            is_gallery_folder = is_a_directory and item_key.endswith('_')
+            # NEW: 使用 is_gallery 函数判断
+            is_gallery_folder = is_a_directory and is_gallery(full_path)
             item_type = "item" if not is_a_directory or is_gallery_folder else "directory"
             relative_path = os.path.relpath(full_path, root_path)
             path_parts = relative_path.replace('\\', '/').split('/')
