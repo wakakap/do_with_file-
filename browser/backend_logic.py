@@ -19,8 +19,9 @@ from serpapi import GoogleSearch
 # --- 配置 ---
 # ChromeDriver 的路径，如果已添加到系统 PATH，可以省略
 CHROMEDRIVER_PATH = "E:\\下载\\picture\\chromedriver.exe" 
-# 支持的图片文件扩展名
+# 支持的图片和音频文件扩展名
 IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.flac', '.wav', '.ogg']
 
 # --- 辅助函数 ---
 def is_gallery(directory_path):
@@ -132,7 +133,7 @@ def _create_item_data(full_path, root_path, cover_path, all_tags, cover_map):
         "full_path": full_path,
         "media_path": media_path.replace('\\', '/'), # 统一路径分隔符为'/'
         "is_dir": is_dir,
-        "is_gallery": is_dir and is_gallery(full_path), # NEW: 检查是否是画廊
+        "is_gallery": is_dir and is_gallery(full_path),
         "tags": all_tags.get(name_no_ext, []), # 从内存中的标签数据获取标签
         "cover_filename": find_cover_filename(cover_path, name_no_ext, cover_map) # 查找封面
     }
@@ -160,6 +161,35 @@ def get_gallery_images(gallery_path):
         # 对图片进行自然排序
         sorted_images = sorted(image_files, key=natural_sort_key)
         return sorted_images
+    except Exception as e:
+        return {"error": str(e)}
+    
+def get_album_details(album_path):
+    """
+    获取专辑文件夹内的音轨列表和封面图片。
+    """
+    try:
+        tracks = []
+        cover_image = None
+        cover_candidates = ['cover.jpg', 'folder.jpg', 'cover.png', 'folder.png']
+
+        # 扫描文件夹内容
+        for item_name in sorted(os.listdir(album_path), key=natural_sort_key):
+            # 检查是否为音频文件
+            if os.path.splitext(item_name)[1].lower() in AUDIO_EXTENSIONS:
+                tracks.append(item_name)
+            # 检查是否为封面图片
+            elif item_name.lower() in cover_candidates:
+                cover_image = item_name
+        
+        # 如果没有找到标准命名的封面，则使用找到的第一张图片作为封面
+        if not cover_image:
+            for item_name in os.listdir(album_path):
+                 if os.path.splitext(item_name)[1].lower() in IMAGE_EXTENSIONS:
+                     cover_image = item_name
+                     break
+
+        return {"tracks": tracks, "cover_image": cover_image}
     except Exception as e:
         return {"error": str(e)}
 
@@ -346,15 +376,13 @@ def generate_covers_logic(path_to_scan, cover_path, cover_map):
         # 创建一个副本进行迭代，以便安全地修改原始列表
         for dir_name in list(dirs):
             gallery_dir_path = os.path.join(root, dir_name)
-            # NEW: 使用 is_gallery 函数进行判断
             if not is_gallery(gallery_dir_path):
                 continue
             
             # 这是一个画廊，阻止 os.walk 进入其内部
             dirs.remove(dir_name)
             
-            base_name = dir_name # NEW: base_name 就是目录名本身
-            # 使用 base_name 查找封面
+            base_name = dir_name
             if find_cover_filename(cover_path, base_name, cover_map) is None:
                 try:
                     images = sorted(
@@ -389,7 +417,6 @@ def auto_import_tags(item_name):
     if not api_key:
         return {"status": "error", "message": "SERPAPI_API_KEY 环境变量未设置。"}
     
-    # NEW: item_name 不再需要清理末尾的 '_'
     search_query = f'{item_name} dmm'
     print(f"正在为 '{item_name}' 自动导入Tag，搜索查询: '{search_query}'")
     
@@ -513,26 +540,22 @@ def auto_import_tags(item_name):
         if driver:
             driver.quit()
 
-def get_structured_stats_data(tags_file_path, item_key_map, manga_root_path, jav_root_path):
+def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
     """
-    根据文件结构组织和聚合访问统计数据。(V8 - 简化了处理流程)
+    根据文件结构组织和聚合访问统计数据。
     """
     try:
-        # --- 简化开始: 将两个循环合并为一个 ---
-        
         flat_stats = get_stats_data(tags_file_path)
         structured_data = {}
 
         for item in flat_stats:
             item_key = item['item_key']
             
-            # 步骤 1: 直接在这里计算聚合视图
             label_views = item['total_views']
             page_views = item.get('page_views', {})
             sum_of_all_page_views = sum(page_views.values())
             aggregation_views = label_views + sum_of_all_page_views
 
-            # 步骤 2: 构建子项（用于下钻视图）
             sub_children = None
             if page_views or label_views > 0:
                 sub_children = []
@@ -542,17 +565,25 @@ def get_structured_stats_data(tags_file_path, item_key_map, manga_root_path, jav
                 if label_views > 0:
                     sub_children.append({"name": "点开而已", "views": label_views})
 
-            # 步骤 3: 查找路径并构建树状结构 (原第二个循环的逻辑)
+            # --- FIXED LOGIC ---
             full_path = item_key_map.get(item_key)
+            # Backward compatibility check for old '_' suffixed keys in tags.json
+            if not full_path and item_key.endswith('_'):
+                legacy_key = item_key[:-1]
+                full_path = item_key_map.get(legacy_key)
+            
             if not full_path: continue
+            # --- END FIXED LOGIC ---
 
             root_path = None
-            if full_path.startswith(manga_root_path): root_path = manga_root_path
-            elif full_path.startswith(jav_root_path): root_path = jav_root_path
+            # Find which root path this item belongs to
+            for r_path in all_root_paths:
+                if full_path.startswith(r_path):
+                    root_path = r_path
+                    break
             if not root_path: continue
 
             is_a_directory = os.path.isdir(full_path)
-            # NEW: 使用 is_gallery 函数判断
             is_gallery_folder = is_a_directory and is_gallery(full_path)
             item_type = "item" if not is_a_directory or is_gallery_folder else "directory"
             relative_path = os.path.relpath(full_path, root_path)
@@ -561,13 +592,12 @@ def get_structured_stats_data(tags_file_path, item_key_map, manga_root_path, jav
             item_object_data = {
                 "name": item_key,
                 "type": item_type,
-                "total_views": label_views, # 保留原始的常规访问量
-                "aggregation_views": aggregation_views # 使用聚合后的总访问量
+                "total_views": label_views,
+                "aggregation_views": aggregation_views
             }
             if sub_children:
                 item_object_data["sub_children"] = sub_children
 
-            # 使用与之前相同的核心修复逻辑来构建树
             if len(path_parts) == 1:
                 group_name = os.path.basename(full_path)
                 if group_name not in structured_data:
@@ -587,12 +617,10 @@ def get_structured_stats_data(tags_file_path, item_key_map, manga_root_path, jav
                 
                 structured_data[group_name]["children"].append(item_object_data)
 
-        # 步骤 4: 计算父文件夹的总和，并排序 (逻辑不变)
         final_result = list(structured_data.values())
         for item in final_result:
             if item.get("type") == "directory":
                 children = item.get("children", [])
-                # 累加子项的 aggregation_views
                 item["aggregation_views"] = sum(child.get('aggregation_views', 0) for child in children)
                 if children:
                     children.sort(key=lambda x: x.get("aggregation_views", 0), reverse=True)
