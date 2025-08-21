@@ -22,6 +22,9 @@ CHROMEDRIVER_PATH = "E:\\下载\\picture\\chromedriver.exe"
 # 支持的图片和音频文件扩展名
 IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
 AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.flac', '.wav', '.ogg']
+VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv']
+SUBTITLE_EXTENSIONS = ['.srt', '.ass', '.vtt']
+EBOOK_EXTENSIONS = ['.epub'] 
 
 # --- 辅助函数 ---
 def is_gallery(directory_path):
@@ -190,6 +193,30 @@ def get_album_details(album_path):
                      break
 
         return {"tracks": tracks, "cover_image": cover_image}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_anime_details(anime_path):
+    """
+    获取动画文件夹内的视频文件列表和字幕文件列表。
+    """
+    try:
+        videos = []
+        subtitles = []
+
+        # 扫描文件夹内容并分类
+        for item_name in os.listdir(anime_path):
+            ext = os.path.splitext(item_name)[1].lower()
+            if ext in VIDEO_EXTENSIONS:
+                videos.append(item_name)
+            elif ext in SUBTITLE_EXTENSIONS:
+                subtitles.append(item_name)
+
+        # 对视频和字幕列表进行自然排序，以确保一一对应
+        sorted_videos = sorted(videos, key=natural_sort_key)
+        sorted_subtitles = sorted(subtitles, key=natural_sort_key)
+
+        return {"videos": sorted_videos, "subtitles": sorted_subtitles}
     except Exception as e:
         return {"error": str(e)}
 

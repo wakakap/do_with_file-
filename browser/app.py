@@ -4,6 +4,7 @@ import subprocess
 import threading
 from flask import Flask, jsonify, render_template, request, send_from_directory, abort
 import backend_logic as logic
+from flask_cors import CORS
 
 # --- 配置和启动检查 ---
 BASE_DIR = "H:\\BROWSER"
@@ -58,6 +59,7 @@ if not os.path.isfile(MAP_FILE_PATH): print(f"!!! 啟動警告：封面映射檔
 
 # 初始化 Flask 应用
 app = Flask(__name__)
+CORS(app)
 app.config['JSON_AS_ASCII'] = False
 
 # --- 辅助函数 ---
@@ -161,9 +163,22 @@ def api_album_details():
     details = logic.get_album_details(album_req_path)
     return jsonify(details)
 
+@app.route('/api/anime_details')
+def api_anime_details():
+    """API端点：获取动画文件夹的剧集和字幕。"""
+    mode = request.args.get('mode', 'ANIME')
+    anime_req_path = request.args.get('path', '')
+    root_path, _ = get_paths_for_mode(mode)
+    
+    if not anime_req_path or not is_safe_path(root_path, anime_req_path):
+        return jsonify({"error": "Access Denied or Invalid Path"}), 403
+        
+    details = logic.get_anime_details(anime_req_path)
+    return jsonify(details)
+
 @app.route('/api/media/<mode>/<type>/<path:filepath>')
 def api_get_media(mode, type, filepath):
-    """通用媒体文件服务路由，现支持音频。"""
+    """通用媒体文件服务路由，现已修正对ANIME模式的支持。"""
     root_path, cover_path = get_paths_for_mode(mode)
     base_path = None
     
@@ -172,15 +187,25 @@ def api_get_media(mode, type, filepath):
 
     if type_lower == 'cover':
         base_path = cover_path
-    elif mode_upper in ['JAV', 'ANIME'] and type_lower == 'video':
+    # --- 主要修改点 ---
+    # JAV 模式仍然使用 'video' 类型
+    elif mode_upper == 'JAV' and type_lower == 'video':
         base_path = root_path
+    # MUSIC 模式使用 'audio' 类型
     elif mode_upper == 'MUSIC' and type_lower == 'audio':
         base_path = root_path
-    elif mode_upper in ['MANGA', 'NOVEL', 'OTHER'] and type_lower == 'pages':
+    # 将 ANIME 加入到使用 'pages' 类型的模式列表中
+    # 这样它就可以像 MANGA 一样，从其主内容文件夹中提供任何文件（视频、字幕等）
+    elif mode_upper in ['MANGA', 'NOVEL', 'OTHER', 'ANIME'] and type_lower == 'pages':
         base_path = root_path
+    # --- 修改结束 ---
     else:
         abort(404)
     
+    # 确保 base_path 被成功设置
+    if not base_path:
+        abort(404)
+
     full_path = os.path.normpath(os.path.join(base_path, filepath))
     if not is_safe_path(base_path, full_path):
         abort(404)
@@ -300,10 +325,12 @@ def api_generate_covers():
     return jsonify({"status": "started", "message": "Cover generation process started."})
 
 # --- 主应用路由 ---
+# 这个路由会自动在 templates/index.html 找到文件
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# 这个路由会自动在 templates/stats.html 找到文件
 @app.route('/stats')
 def stats_page():
     return render_template('stats.html')
