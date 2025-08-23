@@ -12,7 +12,7 @@ select { -webkit-appearance: none; appearance: none; background-image: url('data
 .nav-frame { color: var(--nav-text-color); font-size: 12px; padding-top: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .main-content { flex-grow: 1; overflow-y: auto; padding: 0 15px 15px 15px; }
 #media-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-#media-container.jav-mode, #media-container.anime-mode { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+#media-container.jav-mode{ grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
 .card { background-color: var(--card-background-color); border: 1px solid var(--card-border-color); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
 .card-image-wrapper { width: 100%; background-color: #1E1E1E; display: flex; justify-content: center; align-items: center; color: var(--nav-text-color); font-size: 16px; text-align: center; padding: 10px; box-sizing: border-box; cursor: pointer; }
 .manga-mode .card-image-wrapper, .novel-mode .card-image-wrapper, .other-mode .card-image-wrapper, .anime-mode .card-image-wrapper { aspect-ratio: 2 / 3; }
