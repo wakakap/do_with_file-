@@ -661,8 +661,13 @@ export async function openAnimeView(fullPath, mediaPath, nameNoExt, mode, startE
         buildEpisodeListUI(details.tree);
         animeView.classList.add('active');
         document.body.style.overflow = 'hidden';
+        
         let episodeToPlay = null;
         if (startEpisodePath) {
+            const relativeEpisodePath = startEpisodePath.startsWith(mediaPath + '/')
+                ? startEpisodePath.substring(mediaPath.length + 1)
+                : startEpisodePath;
+
             function findEpisode(nodes, path) {
                 for (const node of nodes) {
                     if (node.type === 'video' && node.path === path) return node;
@@ -673,7 +678,7 @@ export async function openAnimeView(fullPath, mediaPath, nameNoExt, mode, startE
                 }
                 return null;
             }
-            episodeToPlay = findEpisode(details.tree, startEpisodePath);
+            episodeToPlay = findEpisode(details.tree, relativeEpisodePath);
         }
         if (!episodeToPlay) {
             episodeToPlay = findFirstVideo(details.tree);
@@ -828,7 +833,7 @@ export async function loadStatsData() {
             mainSegment.style.width = '100%';
             mainSegment.style.backgroundColor = COLORS[itemIndex % COLORS.length];
             mainSegment.dataSource = item;
-            const hasChildren = item.type === 'directory' && item.children && item.children.length > 0;
+            const hasChildren = (item.type === 'directory' && item.children && item.children.length > 0) || (item.sub_children && item.sub_children.length > 0);
             if (hasChildren) {
                 mainSegment.classList.add('expandable');
             }
@@ -858,56 +863,66 @@ export async function loadStatsData() {
 
 function renderDrillDownBar(barElement, data, parentData) {
     barElement.innerHTML = '';
-    data.slice(0, 25).forEach((child, index) => {
+
+    // 确保子项按访问量从高到低排序
+    const sortedData = data.slice(0, 25).sort((a, b) => {
+        const viewsA = a.ranking_views || a.views || 0;
+        const viewsB = b.ranking_views || b.views || 0;
+        return viewsB - viewsA;
+    });
+
+    sortedData.forEach((child, index) => {
         const segment = document.createElement('div');
         segment.className = 'stat-bar-segment';
         segment.dataSource = child;
         const hasChildren = (child.children && child.children.length > 0) || (child.sub_children && child.sub_children.length > 0);
-        
-        // --- 核心修改区域 ---
-        const fullPathForStats = child.full_path || parentData.full_path; // 获取文件或其父容器的路径
 
+        // 优化：为宽度和显示值使用最准确的访问量字段
+        const viewCount = child.ranking_views || child.views || 0;
+        
+        // --- 核心修复点：为不同类型的子项添加对应的点击功能 ---
         if (child.type === 'page') {
             segment.classList.add('clickable');
             segment.addEventListener('click', async () => {
-                await api.recordStatsView(parentData.full_path); // 先记录访问
+                await api.recordStatsView(parentData.full_path);
                 openImageViewer(parentData.full_path, parentData.media_path, parentData.name, child.page_index, parentData.mode);
             });
         } else if (child.type === 'item' && child.mode === 'JAV') {
             segment.classList.add('clickable');
             segment.addEventListener('click', async () => {
-                await api.recordStatsView(child.full_path); // 先记录访问
+                await api.recordStatsView(child.full_path);
                 openVideoPlayer(child.media_path, child.mode);
             });
+        // --- 新增逻辑：处理 ANIME 类型的视频文件 ---
         } else if (child.type === 'item' && child.mode === 'ANIME') {
             segment.classList.add('clickable');
             segment.addEventListener('click', async () => {
-                await api.recordStatsView(child.full_path); // 先记录访问
+                await api.recordStatsView(child.full_path);
+                // 点击子项（剧集）时，打开整个作品的 ANIME 视图，并直接播放该剧集
                 openAnimeView(parentData.full_path, parentData.media_path, parentData.name, parentData.mode, child.media_path);
             });
         } else if (child.type === 'item' && child.mode === 'MUSIC') {
             segment.classList.add('clickable');
             segment.addEventListener('click', async () => {
-                await api.recordStatsView(child.full_path); // 先记录访问
+                await api.recordStatsView(child.full_path);
+                // 点击子项（音轨）时，打开专辑视图并播放该音轨
                 openAlbumView(parentData.full_path, parentData.media_path, parentData.name, child.name);
             });
         } else if (hasChildren) {
             segment.classList.add('expandable');
             segment.addEventListener('click', handleSegmentClick);
         }
-        const widthValue = child.aggregation_views || child.views || 0;
-        segment.style.flex = `${widthValue} 1 0%`;
+
+        segment.style.flex = `${viewCount} 1 0%`;
         segment.style.backgroundColor = COLORS[index % COLORS.length];
-        let displayValue;
-        if (child.type === 'directory') {
-            displayValue = child.ranking_views || 0;
-        } else {
-            displayValue = child.views || child.aggregation_views || 0;
-        }
-        segment.title = `${child.name}: ${displayValue} 次`;
+        
+        segment.title = `${child.name}: ${viewCount} 次`;
         const segmentLabel = document.createElement('span');
         segmentLabel.className = 'segment-label';
-        segmentLabel.textContent = `${child.name} (${displayValue})`;
+        const displayName = (child.type === 'item' && child.mode === 'ANIME') 
+            ? truncateFilename(child.name) 
+            : child.name;
+        segmentLabel.textContent = `${displayName} (${viewCount})`;
         segment.appendChild(segmentLabel);
         barElement.appendChild(segment);
     });
@@ -926,9 +941,9 @@ function handleSegmentClick(event) {
     event.stopPropagation();
     const segment = event.currentTarget;
     const data = segment.dataSource;
-    const childrenData = data.children || data.sub_children;
     
-    // 如果没有子数据，则直接返回
+    const childrenData = (data.children && data.children.length > 0) ? data.children : data.sub_children;
+
     if (!childrenData || childrenData.length === 0) return;
 
     const parentRow = segment.closest('.stat-row');
@@ -936,39 +951,25 @@ function handleSegmentClick(event) {
     const isDrilldownRow = nextElement && nextElement.classList.contains('drilldown-row');
     const segmentId = data.full_path || data.name;
 
-    // 如果点击的是已经展开的区域，则收起所有下层
     if (isDrilldownRow && nextElement.dataset.expandedBy === segmentId) {
         removeAllSubsequentDrilldowns(nextElement);
     } else {
-        // 否则，收起旧的，展开新的
         if (isDrilldownRow) {
             removeAllSubsequentDrilldowns(nextElement);
         }
 
-        // --- 核心修正区域：正确构建并嵌套元素 ---
         const drilldownRow = document.createElement('div');
         drilldownRow.className = 'drilldown-row stat-row';
         drilldownRow.dataset.expandedBy = segmentId;
 
-        const barWrapper = document.createElement('div');
-        barWrapper.className = 'stat-bar-wrapper';
-
-        const barContainer = document.createElement('div');
-        barContainer.className = 'stat-bar-container';
-
         const newBar = document.createElement('div');
         newBar.className = 'stat-bar';
-        newBar.style.width = '100%';
+        newBar.style.width = '100%'; 
 
-        // 调用渲染函数，填充 newBar
         renderDrillDownBar(newBar, childrenData, data);
         
-        // 将所有元素正确地嵌套起来
-        barContainer.appendChild(newBar);
-        barWrapper.appendChild(barContainer);
-        drilldownRow.appendChild(barWrapper);
+        drilldownRow.appendChild(newBar);
         
-        // 将完整的行插入到 DOM 中
         parentRow.insertAdjacentElement('afterend', drilldownRow);
     }
 }

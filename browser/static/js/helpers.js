@@ -13,8 +13,8 @@ export function truncateFilename(name) {
     }
     const numberStr = match[0];
     const index = match.index;
-    const start = Math.max(0, index - 5);
-    const end = Math.min(nameNoExt.length, index + numberStr.length + 5);
+    const start = Math.max(0, index - 2);
+    const end = Math.min(nameNoExt.length, index + numberStr.length + 2);
     let result = nameNoExt.substring(start, end);
     if (start > 0) {
         result = '…' + result;

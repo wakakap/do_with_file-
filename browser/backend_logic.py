@@ -364,6 +364,7 @@ def search_by_tag(root_path, cover_path, all_tags, cover_map, tag_name):
 def get_stats_data(tags_file_path):
     """
     解析 tags.json 文件，提取所有项目的访问统计数据。
+    现已扩展以支持文件级访问统计（用于ANIME/MUSIC）。
     """
     stats = []
     all_tags_data = load_tags(tags_file_path)
@@ -371,28 +372,37 @@ def get_stats_data(tags_file_path):
     for item_key, tags in all_tags_data.items():
         total_views = 0
         page_views = {}
-        
+        file_views = {}  # <-- 新增：用于存储文件访问量
+
         # 寻找总访问量tag
         total_view_tag = next((t for t in tags if t.startswith('*') and t[1:].isdigit()), None)
         if total_view_tag:
             total_views = int(total_view_tag[1:])
         
-        # 寻找页面访问量tag
-        page_view_tags = [t for t in tags if t.startswith('*p')]
-        for tag in page_view_tags:
-            # 格式: *p<num>:<count>
-            match = re.match(r'\*p(\d+):(\d+)', tag)
-            if match:
-                page_num = match.group(1)
-                count = int(match.group(2))
-                page_views[page_num] = count
-        
-        # 只有在有访问记录时才添加到统计中
-        if total_views > 0 or page_views:
+        # 寻找并分离不同类型的计数标签
+        for tag in tags:
+            if tag.startswith('*p'): # 页面访问量
+                match = re.match(r'\*p(\d+):(\d+)', tag)
+                if match:
+                    page_num = match.group(1)
+                    count = int(match.group(2))
+                    page_views[page_num] = count
+            # <-- 新增逻辑：处理文件访问量 -->
+            elif tag.startswith('*') and ':' in tag and not tag.startswith('*p') and not (tag[1:].isdigit()):
+                # 格式: *文件名:次数
+                # 排除 *p... 和 *123 格式
+                parts = tag[1:].rsplit(':', 1)
+                if len(parts) == 2 and parts[1].isdigit():
+                    filename, count = parts[0], int(parts[1])
+                    file_views[filename] = count
+
+        # 只有在有任何访问记录时才添加到统计中
+        if total_views > 0 or page_views or file_views:
             stats.append({
                 "item_key": item_key,
                 "total_views": total_views,
-                "page_views": page_views
+                "page_views": page_views,
+                "file_views": file_views  # <-- 新增：将文件访问数据加入结果
             })
             
     # 按总访问量从高到低排序
@@ -684,6 +694,7 @@ def auto_import_tags(item_name):
 def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
     """
     根据文件结构组织和聚合访问统计数据。
+    现已扩展以聚合文件级访问数据到 sub_children 中。
     """
     try:
         flat_stats = get_stats_data(tags_file_path)
@@ -694,17 +705,16 @@ def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
             
             ranking_views = item['total_views']
             page_views = item.get('page_views', {})
-            sum_of_all_page_views = sum(page_views.values())
-            aggregation_views = sum_of_all_page_views
+            file_views = item.get('file_views', {})  # <-- 新增：获取文件访问数据
 
-            sub_children = None
+            # <-- 修改：聚合视图现在包含页面和文件 -->
+            aggregation_views = sum(page_views.values()) + sum(file_views.values())
+
+            sub_children = []
             if page_views:
-                sub_children = []
                 sorted_pages = sorted([(int(k), v) for k, v in page_views.items()], key=lambda x: x[1], reverse=True)
-                # --- 核心修改点 1: 为页面增加 page_index ---
                 sub_children.extend([{"name": f"P{p}", "views": v, "type": "page", "page_index": p - 1} for p, v in sorted_pages])
 
-            # --- 核心修改点 2: 解析新的 key_map 结构 ---
             path_info = item_key_map.get(item_key)
             if not path_info and item_key.endswith('_'):
                 legacy_key = item_key[:-1]
@@ -714,7 +724,27 @@ def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
             
             full_path = path_info['path']
             mode = path_info['mode']
-            # --- End 核心修改点 2 ---
+            
+            # <-- 新增逻辑：如果存在文件访问记录，则构建子项 -->
+            if file_views:
+                parent_media_path = ""
+                # 确定根路径以计算相对路径
+                for r_path in all_root_paths:
+                    if full_path.startswith(r_path):
+                        parent_media_path = os.path.relpath(full_path, r_path).replace('\\', '/')
+                        break
+                
+                sorted_files = sorted(file_views.items(), key=lambda x: x[1], reverse=True)
+                for name, v in sorted_files:
+                    # 为每个文件创建一个子对象，包含所有前端需要的信息
+                    sub_children.append({
+                        "name": name,
+                        "views": v,
+                        "type": "item", # 类型是 'item' 而不是 'page'
+                        "media_path": f"{parent_media_path}/{name}" if parent_media_path != '.' else name,
+                        "full_path": os.path.join(full_path, name),
+                        "mode": mode
+                    })
 
             root_path = None
             for r_path in all_root_paths:
@@ -730,19 +760,19 @@ def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
             media_path = relative_path.replace('\\', '/')
             path_parts = media_path.split('/')
             
-            # --- 核心修改点 3: 将 mode 和 media_path 添加到输出对象中 ---
             item_object_data = {
                 "name": item_key,
                 "type": item_type,
                 "ranking_views": ranking_views,
                 "aggregation_views": aggregation_views,
                 "full_path": full_path,
-                "media_path": media_path, # 新增
-                "mode": mode              # 新增
+                "media_path": media_path,
+                "mode": mode
             }
             if sub_children:
+                # <-- 修改：确保子项也按访问量排序 -->
+                sub_children.sort(key=lambda x: x.get('views', 0), reverse=True)
                 item_object_data["sub_children"] = sub_children
-            # --- End 核心修改点 3 ---
 
             if len(path_parts) == 1:
                 group_name = os.path.basename(full_path)
