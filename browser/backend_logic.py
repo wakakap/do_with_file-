@@ -18,7 +18,10 @@ from serpapi import GoogleSearch
 
 # --- 配置 ---
 # ChromeDriver 的路径，如果已添加到系统 PATH，可以省略
-CHROMEDRIVER_PATH = "E:\\下载\\picture\\chromedriver.exe" 
+load_dotenv()  # 从 .env 文件加载环境变量
+CHROMEDRIVER_PATH = os.getenv("CHROMEDRIVER_PATH")
+if not CHROMEDRIVER_PATH:
+    print("!!! 错误: 环境变量 'CHROMEDRIVER_PATH' 未在 .env 文件中设置。程序将无法使用自动导入功能。")
 # 支持的图片和音频文件扩展名
 IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
 AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.flac', '.wav', '.ogg']
@@ -199,32 +202,19 @@ def get_gallery_images(gallery_path):
     except Exception as e:
         return {"error": str(e)}
     
-def get_album_details(album_path):
+def get_album_details(album_path, cover_path, cover_map):
     """
     获取专辑文件夹内的音轨列表和封面图片。
+    封面从 MUSIC_COVER 目录查找。
     """
     try:
         tracks = []
-        cover_image = None
-        cover_candidates = ['cover.jpg', 'folder.jpg', 'cover.png', 'folder.png']
-
-        # 扫描文件夹内容
         for item_name in sorted(os.listdir(album_path), key=natural_sort_key):
-            # 检查是否为音频文件
             if os.path.splitext(item_name)[1].lower() in AUDIO_EXTENSIONS:
                 tracks.append(item_name)
-            # 检查是否为封面图片
-            elif item_name.lower() in cover_candidates:
-                cover_image = item_name
-        
-        # 如果没有找到标准命名的封面，则使用找到的第一张图片作为封面
-        if not cover_image:
-            for item_name in os.listdir(album_path):
-                 if os.path.splitext(item_name)[1].lower() in IMAGE_EXTENSIONS:
-                     cover_image = item_name
-                     break
-
-        return {"tracks": tracks, "cover_image": cover_image}
+        album_base_name = os.path.basename(album_path)
+        cover_image_filename = find_cover_filename(cover_path, album_base_name, cover_map)
+        return {"tracks": tracks, "cover_image": cover_image_filename}
     except Exception as e:
         return {"error": str(e)}
 
@@ -443,23 +433,22 @@ def save_tags(tags_file_path, tags_data):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-def update_view_count(tags_file_path, item_key, page_index=None):
+def update_view_count(tags_file_path, item_key, identifier=None):
     """
-    更新指定项目或其页面的访问次数。
-    这是一个独立的、快速的读-改-写操作，不涉及复杂的排序。
+    更新指定项目或其特定部分（页面、文件）的访问次数。
+    identifier 可以是 None（项目本身）、整数（漫画页面）或字符串（媒体文件名）。
     """
     try:
         tags_data = load_tags(tags_file_path)
         item_tags = tags_data.get(item_key, [])
         
-        # 定义要查找和更新的标签前缀
-        # page_index 为 None 时，是总访问量；否则是页面访问量
-        if page_index is None:
-            # 总访问量格式: *123
+        view_tag_index = -1
+        prefix = ''
+        
+        if identifier is None:
+            # 目标: 项目本身的总访问量, 格式: *123
             prefix = '*'
-            view_tag_index = -1
             for i, tag in enumerate(item_tags):
-                # 确保它是一个纯粹的数字计数标签
                 if tag.startswith(prefix) and tag[1:].isdigit():
                     view_tag_index = i
                     break
@@ -470,11 +459,11 @@ def update_view_count(tags_file_path, item_key, page_index=None):
                 item_tags[view_tag_index] = f"{prefix}{count}"
             else:
                 item_tags.insert(0, f"{prefix}1")
-        else:
-            # 页面访问量格式: *p1:25
-            page_num = page_index + 1
+        
+        elif isinstance(identifier, int):
+            # 目标: 漫画页面, 格式: *p1:25
+            page_num = identifier + 1
             prefix = f'*p{page_num}:'
-            view_tag_index = -1
             for i, tag in enumerate(item_tags):
                 if tag.startswith(prefix):
                     view_tag_index = i
@@ -486,6 +475,23 @@ def update_view_count(tags_file_path, item_key, page_index=None):
                 item_tags[view_tag_index] = f"{prefix}{count}"
             else:
                 item_tags.insert(0, f"{prefix}1")
+
+        elif isinstance(identifier, str):
+            # --- 新增逻辑: ANIME/MUSIC 等媒体文件 ---
+            # 目标: 媒体文件, 格式: *[文件名]:1
+            prefix = f'*{identifier}:'
+            for i, tag in enumerate(item_tags):
+                if tag.startswith(prefix):
+                    view_tag_index = i
+                    break
+
+            if view_tag_index != -1:
+                old_tag = item_tags[view_tag_index]
+                count = int(old_tag[len(prefix):]) + 1
+                item_tags[view_tag_index] = f"{prefix}{count}"
+            else:
+                item_tags.insert(0, f"{prefix}1")
+
 
         tags_data[item_key] = item_tags
         
@@ -772,3 +778,58 @@ def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
         import traceback
         traceback.print_exc()
         return []
+    
+def record_view_recursive(tags_file_path, full_path, all_root_paths):
+    """
+    递归地为给定路径及其所有父目录增加访问次数。
+    """
+    try:
+        tags_data = load_tags(tags_file_path)
+        
+        # 确定当前路径所在的根目录 (例如 H:\BROWSER\MANGA_PAGES)
+        current_root = None
+        for root in all_root_paths:
+            if full_path.startswith(root):
+                current_root = root
+                break
+        if not current_root:
+            return {"status": "error", "message": "Path does not belong to any known root."}
+
+        # 从当前路径开始，逐级向上直到根目录
+        path_iterator = full_path
+        while path_iterator and path_iterator != current_root:
+            item_key = os.path.splitext(os.path.basename(path_iterator))[0]
+            
+            if item_key in tags_data:
+                item_tags = tags_data.get(item_key, [])
+                view_tag_index = -1
+                prefix = '*'
+                
+                # 寻找总访问量tag
+                for i, tag in enumerate(item_tags):
+                    if tag.startswith(prefix) and tag[1:].isdigit():
+                        view_tag_index = i
+                        break
+                
+                if view_tag_index != -1:
+                    old_tag = item_tags[view_tag_index]
+                    count = int(old_tag[len(prefix):]) + 1
+                    item_tags[view_tag_index] = f"{prefix}{count}"
+                else:
+                    item_tags.insert(0, f"{prefix}1")
+                
+                tags_data[item_key] = item_tags
+
+            path_iterator = os.path.dirname(path_iterator)
+            # 如果上一级就是根目录，则停止
+            if path_iterator == current_root:
+                break
+
+        # 保存修改后的 tags.json
+        save_tags(tags_file_path, tags_data)
+        return {"status": "success"}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}

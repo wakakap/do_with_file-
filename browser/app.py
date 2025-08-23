@@ -22,37 +22,14 @@ MODES_CONFIG = {
     'OTHER': {'pages': 'OTHER_PAGES', 'cover': 'OTHER_COVER'},
 }
 
-# 动态生成所有需要的路径
-# (Using variable names from your stable version like MANGA_PAGES, etc.)
-MANGA_PAGES = os.path.join(BASE_DIR, MODES_CONFIG['MANGA']['pages'])
-MANGA_COVER = os.path.join(BASE_DIR, MODES_CONFIG['MANGA']['cover'])
-JAV_PAGES = os.path.join(BASE_DIR, MODES_CONFIG['JAV']['pages'])
-JAV_COVER = os.path.join(BASE_DIR, MODES_CONFIG['JAV']['cover'])
-ANIME_PAGES = os.path.join(BASE_DIR, MODES_CONFIG['ANIME']['pages'])
-ANIME_COVER = os.path.join(BASE_DIR, MODES_CONFIG['ANIME']['cover'])
-MUSIC_PAGES = os.path.join(BASE_DIR, MODES_CONFIG['MUSIC']['pages'])
-MUSIC_COVER = os.path.join(BASE_DIR, MODES_CONFIG['MUSIC']['cover'])
-NOVEL_PAGES = os.path.join(BASE_DIR, MODES_CONFIG['NOVEL']['pages'])
-NOVEL_COVER = os.path.join(BASE_DIR, MODES_CONFIG['NOVEL']['cover'])
-OTHER_PAGES = os.path.join(BASE_DIR, MODES_CONFIG['OTHER']['pages'])
-OTHER_COVER = os.path.join(BASE_DIR, MODES_CONFIG['OTHER']['cover'])
+for mode, config in MODES_CONFIG.items():
+    for key, folder_name in config.items():
+        path = os.path.join(BASE_DIR, folder_name)
+        if not os.path.isdir(path):
+            print(f"!!! 啟動錯誤：必要的資料夾「{folder_name}」不存在。")
+            print(f"    路徑: {os.path.abspath(path)}")
+            sys.exit(1)
 
-# 将需要检查的路径放入一个字典，方便遍历
-REQUIRED_PATHS = {
-    "MANGA_PAGES": MANGA_PAGES, "MANGA_COVER": MANGA_COVER,
-    "JAV_PAGES": JAV_PAGES, "JAV_COVER": JAV_COVER,
-    "ANIME_PAGES": ANIME_PAGES, "ANIME_COVER": ANIME_COVER,
-    "MUSIC_PAGES": MUSIC_PAGES, "MUSIC_COVER": MUSIC_COVER,
-    "NOVEL_PAGES": NOVEL_PAGES, "NOVEL_COVER": NOVEL_COVER,
-    "OTHER_PAGES": OTHER_PAGES, "OTHER_COVER": OTHER_COVER,
-}
-
-# 启动时检查所有必要的文件夹是否存在
-for name, path in REQUIRED_PATHS.items():
-    if not os.path.isdir(path):
-        print(f"!!! 啟動錯誤：必要的資料夾「{name}」不存在或不是一個有效的目錄。")
-        print(f"    請在 app.py 中檢查路徑設定或手動建立： {os.path.abspath(path)}")
-        sys.exit(1)
 # 启动时检查数据文件
 if not os.path.isfile(TAGS_FILE_PATH): print(f"!!! 啟動警告：標籤檔案 'tags.json' 不存在，標籤功能將無法使用。")
 if not os.path.isfile(MAP_FILE_PATH): print(f"!!! 啟動警告：封面映射檔案 'map.txt' 不存在，將僅使用直接檔名匹配封面。")
@@ -82,13 +59,10 @@ view_count_lock = threading.Lock()
 def get_paths_for_mode(mode):
     """根据模式返回对应的内容和封面路径。"""
     mode_upper = mode.upper()
-    if mode_upper in MODES_CONFIG:
-        # Using globals() to dynamically access variables like MANGA_PAGES, etc.
-        pages_path = globals()[f"{mode_upper}_PAGES"]
-        cover_path = globals()[f"{mode_upper}_COVER"]
-        return pages_path, cover_path
-    # 默认返回 MANGA 的路径作为备用
-    return MANGA_PAGES, MANGA_COVER
+    config = MODES_CONFIG.get(mode_upper, MODES_CONFIG['MANGA'])
+    pages_path = os.path.join(BASE_DIR, config['pages'])
+    cover_path = os.path.join(BASE_DIR, config['cover'])
+    return pages_path, cover_path
 
 def build_item_key_map_for_mode(scan_path):
     """为指定路径构建 item_key -> full_path 的映射。"""
@@ -155,12 +129,11 @@ def api_album_details():
     """API端点：获取专辑文件夹的音轨和封面。"""
     mode = request.args.get('mode', 'MUSIC')
     album_req_path = request.args.get('path', '')
-    root_path, _ = get_paths_for_mode(mode)
+    pages_path, cover_path = get_paths_for_mode(mode)
     
-    if not album_req_path or not is_safe_path(root_path, album_req_path):
+    if not album_req_path or not is_safe_path(pages_path, album_req_path):
         return jsonify({"error": "Access Denied or Invalid Path"}), 403
-        
-    details = logic.get_album_details(album_req_path)
+    details = logic.get_album_details(album_req_path, cover_path, cover_map)
     return jsonify(details)
 
 @app.route('/api/anime_details')
@@ -194,7 +167,7 @@ def api_get_media(mode, type, filepath):
     elif mode_upper == 'MUSIC' and type_lower == 'audio':
         base_path = root_path
     # 'pages' 类型现在也包含视频、epub和字幕
-    elif mode_upper in ['MANGA', 'NOVEL', 'OTHER', 'ANIME'] and type_lower == 'pages':
+    elif mode_upper in ['MANGA', 'NOVEL', 'OTHER', 'ANIME', 'MUSIC'] and type_lower == 'pages':
         base_path = root_path
     else:
         # 如果类型不匹配，直接中止
@@ -294,15 +267,33 @@ def api_record_view():
     data = request.get_json()
     if not data: return jsonify({"status": "error", "message": "Invalid request"}), 400
     item_key = data.get('item_key')
-    page_index = data.get('page_index')
+    # 从 'page_index' 泛化为 'identifier'
+    identifier = data.get('identifier') 
     if not item_key: return jsonify({"status": "error", "message": "item_key is required"}), 400
 
     with view_count_lock:
-        result = logic.update_view_count(TAGS_FILE_PATH, item_key, page_index)
+        result = logic.update_view_count(TAGS_FILE_PATH, item_key, identifier)
     
     if result['status'] == 'success':
         global all_tags
         all_tags = logic.load_tags(TAGS_FILE_PATH)
+    return jsonify(result)
+
+@app.route('/api/record_stats_view', methods=['POST'])
+def api_record_stats_view():
+    data = request.get_json()
+    if not data or 'full_path' not in data:
+        return jsonify({"status": "error", "message": "Invalid request"}), 400
+    
+    full_path = data.get('full_path')
+    all_root_paths = [get_paths_for_mode(mode)[0] for mode in MODES_CONFIG]
+    
+    with view_count_lock: # 复用现有的线程锁
+        result = logic.record_view_recursive(TAGS_FILE_PATH, full_path, all_root_paths)
+    
+    if result['status'] == 'success':
+        global all_tags
+        all_tags = logic.load_tags(TAGS_FILE_PATH) # 重新加载标签数据
     return jsonify(result)
 
 @app.route('/api/auto_import_tags', methods=['POST'])
