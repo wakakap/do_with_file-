@@ -60,6 +60,38 @@ def natural_sort_key(s):
     # 返回一个元组，排序时会先比较文本部分，再比较数字部分
     return (text_part, num_part)
 
+def get_episode_identifier(name):
+    """
+    从文件名中提取核心的两位数字剧集编号。
+    支持多种常见模式，并始终只返回数字部分。
+    模式优先级: 1. E+两位数字  2. 成对括号[]()  3. 符号+两位数字+相同符号
+    """
+    # 移除文件扩展名以便于匹配
+    name_no_ext = os.path.splitext(name)[0]
+    
+    # --- 模式1: 优先匹配 "E+两位数字" (例如 E01, e12) ---
+    match = re.search(r'E(\d{2})', name_no_ext, re.IGNORECASE)
+    if match:
+        return match.group(1)
+
+    # --- 模式2 (新): 匹配成对的方括号或圆括号内的两位数字 ---
+    # \[(\d{2})\]   --> 匹配 [xx]
+    # |             --> 或
+    # \((\d{2})\)   --> 匹配 (xx)
+    match = re.search(r'\[(\d{2})\]|\((\d{2})\)', name_no_ext)
+    if match:
+        # group(1)对应[xx]的数字, group(2)对应(xx)的数字
+        # 其中一个必然是None，所以可以用 or 来返回有值的那一个
+        return match.group(1) or match.group(2)
+
+    # --- 模式3: 如果以上都未匹配，则尝试 "符号+两位数字+相同符号" ---
+    match = re.search(r'([ ._\[\]\(\)-])(\d{2})\1', name_no_ext)
+    if match:
+        return match.group(2)
+        
+    # 如果所有模式都找不到，返回 None
+    return None
+
 def load_tags(tags_file_path):
     """从指定的 JSON 文件加载标签数据。"""
     try:
@@ -196,30 +228,106 @@ def get_album_details(album_path):
     except Exception as e:
         return {"error": str(e)}
 
+def extract_numbers_from_string(s):
+    """从字符串中提取所有数字序列并返回一个集合。"""
+    # re.findall会找到所有不重叠的数字序列
+    return set(re.findall(r'\d+', s))
+
 def get_anime_details(anime_path):
     """
-    获取动画文件夹内的视频文件列表和字幕文件列表。
+    递归扫描动画文件夹，并返回一个包含视频和字幕文件的结构化树。
+    使用“精确匹配优先，剧集编号标识符匹配补充”的智能策略来关联视频和多个字幕文件。
     """
     try:
-        videos = []
-        subtitles = []
+        def build_tree(root_path):
+            """辅助函数，用于构建文件/文件夹树。"""
+            tree = []
+            items_for_sorting = {}
 
-        # 扫描文件夹内容并分类
-        for item_name in os.listdir(anime_path):
-            ext = os.path.splitext(item_name)[1].lower()
-            if ext in VIDEO_EXTENSIONS:
-                videos.append(item_name)
-            elif ext in SUBTITLE_EXTENSIONS:
-                subtitles.append(item_name)
+            if not os.path.isdir(root_path):
+                return []
 
-        # 对视频和字幕列表进行自然排序，以确保一一对应
-        sorted_videos = sorted(videos, key=natural_sort_key)
-        sorted_subtitles = sorted(subtitles, key=natural_sort_key)
+            # 1. 首先，将目录下的文件分类为视频和字幕，并预先提取信息
+            video_files = []
+            subtitle_files = []
+            all_items_in_dir = os.listdir(root_path)
 
-        return {"videos": sorted_videos, "subtitles": sorted_subtitles}
+            for item_name in all_items_in_dir:
+                base_name, ext = os.path.splitext(item_name)
+                ext = ext.lower()
+                relative_path = os.path.relpath(os.path.join(root_path, item_name), anime_path).replace('\\', '/')
+                
+                if ext in VIDEO_EXTENSIONS:
+                    video_files.append({
+                        "name": item_name,
+                        "path": relative_path,
+                        "base_name": base_name,
+                        # <--- 修改开始: 使用新的、更严格的剧集编号提取函数
+                        "identifier": get_episode_identifier(item_name)
+                        # <--- 修改结束
+                    })
+                # <--- 修改开始: 限制只加载 .vtt 格式的字幕
+                elif ext == '.vtt': # 之前是 elif ext in SUBTITLE_EXTENSIONS:
+                    subtitle_files.append({
+                        "name": item_name,
+                        "path": relative_path,
+                        "base_name": base_name,
+                        "identifier": get_episode_identifier(item_name)
+                    })
+                # <--- 修改结束
+
+            # 2. 为每个视频文件查找匹配的字幕
+            for video in video_files:
+                matched_subtitles = set()
+
+                for subtitle in subtitle_files:
+                    # --- !! 核心修正：新的智能匹配逻辑 !! ---
+                    # 条件1：主文件名完全相同 (最高优先级)
+                    is_exact_match = (video["base_name"] == subtitle["base_name"])
+                    
+                    # 条件2：剧集编号标识符相同 (补充匹配)
+                    is_identifier_match = False
+                    # 确保标识符都存在且不为空，然后进行比较
+                    if video["identifier"] and video["identifier"] == subtitle["identifier"]:
+                        is_identifier_match = True
+
+                    if is_exact_match or is_identifier_match:
+                        matched_subtitles.add(subtitle["path"])
+                
+                sorted_matched_subtitles = sorted(list(matched_subtitles))
+                
+                items_for_sorting[video["name"]] = {
+                    "name": video["name"],
+                    "type": "video",
+                    "path": video["path"],
+                    "subtitles": sorted_matched_subtitles
+                }
+            
+            # 3. 递归处理子文件夹
+            for item_name in all_items_in_dir:
+                full_path = os.path.join(root_path, item_name)
+                if os.path.isdir(full_path):
+                    children = build_tree(full_path)
+                    if any(node['type'] == 'video' or (node['type'] == 'directory' and node.get('children')) for node in children):
+                        items_for_sorting[item_name] = {
+                            "name": item_name,
+                            "type": "directory",
+                            "children": children
+                        }
+
+            # 4. 自然排序并构建最终的树
+            sorted_keys = sorted(items_for_sorting.keys(), key=natural_sort_key)
+            for key in sorted_keys:
+                tree.append(items_for_sorting[key])
+
+            return tree
+
+        return {"tree": build_tree(anime_path)}
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"error": str(e)}
-
+    
 def search_all(root_path, cover_path, all_tags, cover_map, keyword):
     """在指定根目录下递归搜索所有匹配关键词的项目。"""
     keyword_lower = keyword.lower() # 转换为小写以进行不区分大小写的比较
@@ -578,32 +686,31 @@ def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
         for item in flat_stats:
             item_key = item['item_key']
             
-            label_views = item['total_views']
+            ranking_views = item['total_views']
             page_views = item.get('page_views', {})
             sum_of_all_page_views = sum(page_views.values())
-            aggregation_views = label_views + sum_of_all_page_views
+            aggregation_views = sum_of_all_page_views
 
             sub_children = None
-            if page_views or label_views > 0:
+            if page_views:
                 sub_children = []
-                if page_views:
-                    sorted_pages = sorted([(int(k), v) for k, v in page_views.items()], key=lambda x: x[1], reverse=True)
-                    sub_children.extend([{"name": f"P{p}", "views": v} for p, v in sorted_pages])
-                if label_views > 0:
-                    sub_children.append({"name": "点开而已", "views": label_views})
+                sorted_pages = sorted([(int(k), v) for k, v in page_views.items()], key=lambda x: x[1], reverse=True)
+                # --- 核心修改点 1: 为页面增加 page_index ---
+                sub_children.extend([{"name": f"P{p}", "views": v, "type": "page", "page_index": p - 1} for p, v in sorted_pages])
 
-            # --- FIXED LOGIC ---
-            full_path = item_key_map.get(item_key)
-            # Backward compatibility check for old '_' suffixed keys in tags.json
-            if not full_path and item_key.endswith('_'):
+            # --- 核心修改点 2: 解析新的 key_map 结构 ---
+            path_info = item_key_map.get(item_key)
+            if not path_info and item_key.endswith('_'):
                 legacy_key = item_key[:-1]
-                full_path = item_key_map.get(legacy_key)
+                path_info = item_key_map.get(legacy_key)
             
-            if not full_path: continue
-            # --- END FIXED LOGIC ---
+            if not path_info: continue
+            
+            full_path = path_info['path']
+            mode = path_info['mode']
+            # --- End 核心修改点 2 ---
 
             root_path = None
-            # Find which root path this item belongs to
             for r_path in all_root_paths:
                 if full_path.startswith(r_path):
                     root_path = r_path
@@ -611,19 +718,25 @@ def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
             if not root_path: continue
 
             is_a_directory = os.path.isdir(full_path)
-            is_gallery_folder = is_a_directory and is_gallery(full_path)
-            item_type = "item" if not is_a_directory or is_gallery_folder else "directory"
+            item_type = "directory" if is_a_directory else "item"
+
             relative_path = os.path.relpath(full_path, root_path)
-            path_parts = relative_path.replace('\\', '/').split('/')
+            media_path = relative_path.replace('\\', '/')
+            path_parts = media_path.split('/')
             
+            # --- 核心修改点 3: 将 mode 和 media_path 添加到输出对象中 ---
             item_object_data = {
                 "name": item_key,
                 "type": item_type,
-                "total_views": label_views,
-                "aggregation_views": aggregation_views
+                "ranking_views": ranking_views,
+                "aggregation_views": aggregation_views,
+                "full_path": full_path,
+                "media_path": media_path, # 新增
+                "mode": mode              # 新增
             }
             if sub_children:
                 item_object_data["sub_children"] = sub_children
+            # --- End 核心修改点 3 ---
 
             if len(path_parts) == 1:
                 group_name = os.path.basename(full_path)
@@ -640,19 +753,17 @@ def get_structured_stats_data(tags_file_path, item_key_map, all_root_paths):
             else:
                 group_name = path_parts[0]
                 if group_name not in structured_data:
-                    structured_data[group_name] = {"name": group_name, "type": "directory", "children": [], "aggregation_views": 0}
+                    structured_data[group_name] = {"name": group_name, "type": "directory", "children": [], "aggregation_views": 0, "ranking_views": 0, "full_path": os.path.join(root_path, group_name), "mode": mode}
                 
                 structured_data[group_name]["children"].append(item_object_data)
 
         final_result = list(structured_data.values())
-        for item in final_result:
-            if item.get("type") == "directory":
-                children = item.get("children", [])
-                item["aggregation_views"] = sum(child.get('aggregation_views', 0) for child in children)
-                if children:
-                    children.sort(key=lambda x: x.get("aggregation_views", 0), reverse=True)
         
-        final_result.sort(key=lambda x: x.get("aggregation_views", 0), reverse=True)
+        for item in final_result:
+            if item.get("type") == "directory" and item.get("children"):
+                item["children"].sort(key=lambda x: x.get("aggregation_views", 0), reverse=True)
+
+        final_result.sort(key=lambda x: x.get("ranking_views", 0), reverse=True)
         
         return final_result
 

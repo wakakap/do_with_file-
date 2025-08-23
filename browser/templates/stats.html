@@ -19,33 +19,46 @@
         .button { background-color: var(--button-color); color: var(--text-color); border: 1px solid var(--card-border-color); border-radius: 6px; padding: 8px 12px; font-size: 14px; cursor: pointer; transition: background-color 0.2s; text-decoration: none; }
         .button:hover { background-color: var(--button-hover-color); }
         .main-content { padding: 20px; }
-        #stats-container { display: flex; flex-direction: column; gap: 20px; }
-        .stat-item { display: flex; flex-direction: column; gap: 8px; }
-        .stat-label { font-size: 16px; font-weight: bold; word-break: break-all; margin-left: 5px; }
+        #stats-container { display: flex; flex-direction: column; gap: 2px; }
+
+        .stat-row { padding-bottom: 8px; }
+        .stat-label { font-size: 16px; font-weight: bold; word-break: break-all; margin-left: 5px; margin-bottom: 8px; }
         .stat-bar-wrapper { display: flex; align-items: center; gap: 10px; }
         .stat-bar-container { flex-grow: 1; }
-        .stat-bar { display: flex; width: 100%; height: 28px; background-color: #3a3a3a; border-radius: 5px; overflow: hidden; align-items: center; }
+        .stat-bar { display: flex; height: 28px; background-color: #3a3a3a; border-radius: 5px; overflow: hidden; align-items: center; }
+        
         .stat-bar-segment {
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 12px;
-            overflow: hidden;
-            transition: filter 0.2s;
-            position: relative;
+            height: 100%; display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 12px; overflow: hidden;
+            transition: filter 0.2s; position: relative;
         }
-        .stat-bar-segment:hover { filter: brightness(1.2); }
+        .stat-bar-segment.expandable, .stat-bar-segment.clickable {
+            cursor: pointer;
+        }
+        .stat-bar-segment.expandable:hover, .stat-bar-segment.clickable:hover {
+            filter: brightness(1.2);
+        }
+
         .segment-label {
-            padding: 0 8px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            display: block; padding: 0 8px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
         .stat-total { font-size: 16px; font-weight: bold; min-width: 50px; text-align: right; }
+        .drilldown-row { padding-top: 10px; }
         #loading-indicator { font-size: 24px; text-align: center; padding: 50px; }
+
+        /* --- NEW: Copied viewer styles from index.html --- */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.9); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .overlay.active { display: flex; }
+        .overlay .close-btn { position: absolute; top: 20px; right: 30px; font-size: 40px; color: white; cursor: pointer; z-index: 1010; text-shadow: 0 0 5px black; }
+        #image-viewer { flex-direction: row; padding: 20px; box-sizing: border-box; }
+        #image-viewer .image-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; height: 100%; }
+        #image-viewer .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        #image-viewer .progress-bar { width: 70px; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 0; box-sizing: border-box; gap: 1px; cursor: pointer; }
+        .progress-segment-wrapper { display: flex; align-items: center; justify-content: flex-end; flex-grow: 1; }
+        .progress-label { width: 30px; font-size: 10px; color: #cccccc; text-align: right; padding-right: 5px; flex-shrink: 0; }
+        #image-viewer .progress-segment { flex-grow: 1; max-width: 15px; align-self: stretch; background-color: #555; border-radius: 2px; transition: background-color 0.2s; }
+        #image-viewer .progress-segment.active { background-color: #3B8ED0; }
     </style>
 </head>
 <body>
@@ -62,78 +75,211 @@
         </div>
     </div>
 
+    <div id="image-viewer" class="overlay">
+        <span class="close-btn">&times;</span>
+        <div class="image-container">
+            <img id="current-image" src="" alt="viewer image">
+        </div>
+        <div id="progress-bar-container" class="progress-bar"></div>
+    </div>
+
     <script>
     document.addEventListener('DOMContentLoaded', async () => {
         const statsContainer = document.getElementById('stats-container');
         const loadingIndicator = document.getElementById('loading-indicator');
         const COLORS = ['#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'];
 
-        // --- 渲染函数 ---
+        // --- NEW: Copied viewer elements and state from index.html ---
+        const imageViewer = document.getElementById('image-viewer');
+        const imageContainer = imageViewer.querySelector('.image-container');
+        const progressBarContainer = document.getElementById('progress-bar-container');
+        const currentImage = document.getElementById('current-image');
+        const imageViewerCloseBtn = imageViewer.querySelector('.close-btn');
 
-        function renderDrillDownView(barElement, itemData) {
-            barElement.innerHTML = ''; // 清空
+        let galleryState = { isOpen: false, baseMediaPath: '', itemKey: '', files: [], currentIndex: 0, isLoading: false, mode: 'MANGA' };
 
-            // --- 新增代码：截取排序后的前30个子区域 ---
-            const limitedSubChildren = itemData.sub_children.slice(0, 25);
-
-            limitedSubChildren.forEach((sub, subIndex) => { // 使用截取后的数组
-                const subSegment = document.createElement('div');
-                subSegment.className = 'stat-bar-segment';
-                subSegment.style.flex = `${sub.views} 1 0%`;
-                subSegment.style.backgroundColor = COLORS[subIndex % COLORS.length];
-                subSegment.title = `${sub.name}: ${sub.views} 次`;
-
-                const subLabel = document.createElement('span');
-                subLabel.className = 'segment-label';
-                subLabel.textContent = `${sub.name} (${sub.views})`;
-
-                subSegment.appendChild(subLabel);
-                barElement.appendChild(subSegment);
-            });
+        // --- NEW: Copied viewer JS functions from index.html ---
+        function openImageViewer(fullPath, mediaPath, itemKey, mode, startIndex = 0) {
+            loadingIndicator.style.display = 'block';
+            const url = `/api/gallery?mode=${mode}&path=${encodeURIComponent(fullPath)}`;
+            fetch(url).then(res => res.json()).then(files => {
+                loadingIndicator.style.display = 'none';
+                if (files && !files.error && files.length > 0) {
+                    galleryState = { ...galleryState, isOpen: true, baseMediaPath: mediaPath, files: files, currentIndex: -1, itemKey: itemKey, mode: mode };
+                    imageViewer.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                    buildProgressBar();
+                    displayImage(startIndex);
+                } else { alert('这个图片集是空的或载入失败！'); }
+            }).catch(err => { loadingIndicator.style.display = 'none'; alert('载入图片集失败：' + err); });
         }
 
-        function renderNormalView(barElement, sourceData) {
-            barElement.innerHTML = ''; // 清空
-            // --- 新增代码：截取排序后的前30个子区域 ---
-            const limitedSourceData = sourceData.slice(0, 25);
-            limitedSourceData.forEach((child, index) => { // 使用截取后的数组
+        function closeImageViewer() {
+            galleryState.isOpen = false;
+            imageViewer.classList.remove('active');
+            document.body.style.overflow = 'auto';
+            currentImage.src = "";
+            currentImage.style.opacity = 0;
+        }
+
+        function displayImage(index) {
+            if (!galleryState.isOpen || galleryState.isLoading || index < 0 || index >= galleryState.files.length) return;
+            galleryState.isLoading = true;
+            currentImage.style.opacity = 0;
+            setTimeout(() => {
+                const imageName = galleryState.files[index];
+                const imageUrl = `/api/media/${galleryState.mode}/pages/${galleryState.baseMediaPath}/${imageName}`;
+                currentImage.src = imageUrl;
+                currentImage.onload = () => {
+                    currentImage.style.opacity = 1;
+                    galleryState.currentIndex = index;
+                    updateProgressBar();
+                    galleryState.isLoading = false;
+                };
+                currentImage.onerror = () => { galleryState.isLoading = false; }
+            }, 200);
+        }
+
+        function buildProgressBar() {
+            progressBarContainer.innerHTML = '';
+            for (let i = 0; i < galleryState.files.length; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'progress-segment-wrapper';
+                const segment = document.createElement('div');
+                segment.className = 'progress-segment';
+                wrapper.appendChild(segment);
+                wrapper.onclick = () => displayImage(i);
+                progressBarContainer.appendChild(wrapper);
+            }
+        }
+
+        function updateProgressBar() {
+            const segments = progressBarContainer.querySelectorAll('.progress-segment');
+            segments.forEach((seg, i) => seg.classList.toggle('active', i === galleryState.currentIndex));
+        }
+
+        imageViewerCloseBtn.addEventListener('click', closeImageViewer);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && galleryState.isOpen) closeImageViewer();
+        });
+
+
+        /**
+         * Renders the content of a drill-down bar with multiple segments.
+         */
+        function renderDrillDownBar(barElement, data, parentData) { // Now accepts parentData
+            barElement.innerHTML = '';
+            const limitedData = data.slice(0, 25);
+
+            limitedData.forEach((child, index) => {
                 const segment = document.createElement('div');
                 segment.className = 'stat-bar-segment';
-                segment.style.flex = `${child.aggregation_views} 1 0%`;
+                segment.dataSource = child;
+
+                const hasChildren = (child.children && child.children.length > 0) || (child.sub_children && child.sub_children.length > 0);
+                
+                // --- CORE MODIFICATION: Add click behavior for files/pages ---
+                if (child.type === 'page') {
+                    segment.classList.add('clickable');
+                    segment.addEventListener('click', () => {
+                        // Use parentData to get gallery info, and child for page index
+                        openImageViewer(parentData.full_path, parentData.media_path, parentData.name, parentData.mode, child.page_index);
+                    });
+                } else if (hasChildren) {
+                    segment.classList.add('expandable');
+                    segment.addEventListener('click', handleSegmentClick);
+                }
+                
+                const widthValue = child.aggregation_views || child.views || 0;
+                segment.style.flex = `${widthValue} 1 0%`;
                 segment.style.backgroundColor = COLORS[index % COLORS.length];
-                segment.title = `${child.name}: ${child.aggregation_views} 次`;
+                
+                let displayValue;
+                if (child.type === 'directory') {
+                    displayValue = child.ranking_views || 0;
+                } else {
+                    displayValue = child.views || child.aggregation_views || 0;
+                }
+                
+                segment.title = `${child.name}: ${displayValue} 次`;
 
                 const segmentLabel = document.createElement('span');
                 segmentLabel.className = 'segment-label';
-                segmentLabel.textContent = `${child.name} (${child.aggregation_views})`;
+                segmentLabel.textContent = `${child.name} (${displayValue})`;
                 segment.appendChild(segmentLabel);
-
-                if (child.sub_children && child.sub_children.length > 1) {
-                    segment.style.cursor = 'pointer';
-                    segment.addEventListener('mouseenter', () => renderDrillDownView(barElement, child));
-                }
-                
                 barElement.appendChild(segment);
             });
         }
+        
+        function removeAllSubsequentDrilldowns(startElement) {
+            let currentElement = startElement;
+            while (currentElement && currentElement.classList.contains('drilldown-row')) {
+                const nextSibling = currentElement.nextElementSibling;
+                currentElement.remove();
+                currentElement = nextSibling;
+            }
+        }
 
-        // --- 主逻辑 ---
+        function handleSegmentClick(event) {
+            event.stopPropagation();
+            const segment = event.currentTarget;
+            const data = segment.dataSource;
+            const childrenData = data.children || data.sub_children;
 
+            if (!childrenData || childrenData.length === 0) return;
+
+            const parentRow = segment.closest('.stat-row');
+            const nextElement = parentRow.nextElementSibling;
+            const isDrilldownRow = nextElement && nextElement.classList.contains('drilldown-row');
+            const segmentId = data.full_path || data.name;
+
+            if (isDrilldownRow && nextElement.dataset.expandedBy === segmentId) {
+                removeAllSubsequentDrilldowns(nextElement);
+            } else {
+                if (isDrilldownRow) {
+                    removeAllSubsequentDrilldowns(nextElement);
+                }
+
+                const drilldownRow = document.createElement('div');
+                drilldownRow.className = 'drilldown-row stat-row';
+                drilldownRow.dataset.expandedBy = segmentId;
+                
+                const barWrapper = document.createElement('div');
+                barWrapper.className = 'stat-bar-wrapper';
+                const barContainer = document.createElement('div');
+                barContainer.className = 'stat-bar-container';
+                const newBar = document.createElement('div');
+                newBar.className = 'stat-bar';
+                newBar.style.width = '100%';
+
+                // Pass parent data down to the next level
+                renderDrillDownBar(newBar, childrenData, data);
+
+                barContainer.appendChild(newBar);
+                barWrapper.appendChild(barContainer);
+                drilldownRow.appendChild(barWrapper);
+                
+                parentRow.insertAdjacentElement('afterend', drilldownRow);
+            }
+        }
+
+        // --- Main Logic ---
         try {
             const response = await fetch('/api/structured_stats');
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const statsData = await response.json();
             
             loadingIndicator.style.display = 'none';
-
             if (statsData.length === 0) {
                 statsContainer.innerHTML = '<p>暂无任何访问记录。</p>';
                 return;
             }
 
-            statsData.forEach(item => {
-                const statItem = document.createElement('div');
-                statItem.className = 'stat-item';
+            const maxRankingViews = statsData.length > 0 ? Math.max(...statsData.map(item => item.ranking_views || 0)) : 0;
+
+            statsData.forEach((item, itemIndex) => {
+                const statRow = document.createElement('div');
+                statRow.className = 'stat-row';
 
                 const label = document.createElement('div');
                 label.className = 'stat-label';
@@ -148,27 +294,43 @@
                 const bar = document.createElement('div');
                 bar.className = 'stat-bar';
 
+                if (maxRankingViews > 0) {
+                    const widthPercentage = (item.ranking_views / maxRankingViews) * 100;
+                    bar.style.width = `${widthPercentage}%`;
+                } else {
+                    bar.style.width = '0%';
+                }
+
+                const mainSegment = document.createElement('div');
+                mainSegment.className = 'stat-bar-segment';
+                mainSegment.style.width = '100%';
+                mainSegment.style.backgroundColor = COLORS[itemIndex % COLORS.length];
+                mainSegment.dataSource = item;
+
+                const hasChildren = item.type === 'directory' && item.children && item.children.length > 0;
+                if (hasChildren) {
+                    mainSegment.classList.add('expandable');
+                }
+                mainSegment.addEventListener('click', handleSegmentClick);
+
+                const mainLabel = document.createElement('span');
+                mainLabel.className = 'segment-label';
+                mainLabel.textContent = item.name;
+                mainSegment.appendChild(mainLabel);
+                
+                bar.appendChild(mainSegment);
+
                 const total = document.createElement('div');
                 total.className = 'stat-total';
+                total.textContent = item.ranking_views || 0;
                 
-                // Bug Fix 2: 统一显示代表宽度的 aggregation_views
-                total.textContent = item.aggregation_views || 0;
-                
-                const sourceData = item.type === 'directory' ? item.children : [item];
-
-                // Bug Fix 1: 无条件为所有 bar 添加数据源和 mouseleave 事件
-                bar.sourceData = sourceData;
-                bar.addEventListener('mouseleave', () => renderNormalView(bar, bar.sourceData));
-                
-                // 初始渲染
-                renderNormalView(bar, sourceData);
-
                 barContainer.appendChild(bar);
                 barWrapper.appendChild(barContainer);
                 barWrapper.appendChild(total);
-                statItem.appendChild(label);
-                statItem.appendChild(barWrapper);
-                statsContainer.appendChild(statItem);
+                
+                statRow.appendChild(label);
+                statRow.appendChild(barWrapper);
+                statsContainer.appendChild(statRow);
             });
 
         } catch (error) {

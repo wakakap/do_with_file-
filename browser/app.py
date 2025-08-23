@@ -184,34 +184,63 @@ def api_get_media(mode, type, filepath):
     
     mode_upper = mode.upper()
     type_lower = type.lower()
+    file_ext = os.path.splitext(filepath)[1].lower()
 
     if type_lower == 'cover':
         base_path = cover_path
-    # --- 主要修改点 ---
-    # JAV 模式仍然使用 'video' 类型
+    # 视频和音频文件的路由逻辑保持不变
     elif mode_upper == 'JAV' and type_lower == 'video':
         base_path = root_path
-    # MUSIC 模式使用 'audio' 类型
     elif mode_upper == 'MUSIC' and type_lower == 'audio':
         base_path = root_path
-    # 将 ANIME 加入到使用 'pages' 类型的模式列表中
-    # 这样它就可以像 MANGA 一样，从其主内容文件夹中提供任何文件（视频、字幕等）
+    # 'pages' 类型现在也包含视频、epub和字幕
     elif mode_upper in ['MANGA', 'NOVEL', 'OTHER', 'ANIME'] and type_lower == 'pages':
         base_path = root_path
-    # --- 修改结束 ---
     else:
+        # 如果类型不匹配，直接中止
+        print(f"[调试] 路由中止: 不支持的 mode/type 组合 - {mode}/{type}")
         abort(404)
     
-    # 确保 base_path 被成功设置
     if not base_path:
+        print(f"[调试] 路由中止: 未能确定 base_path")
         abort(404)
 
     full_path = os.path.normpath(os.path.join(base_path, filepath))
+    
+    # --- [服务器端调试 1] ---
+    # print(f"[调试] 请求媒体: mode={mode}, type={type}, filepath={filepath}")
+    # print(f"[调试] 计算出的完整路径: {full_path}")
+    
     if not is_safe_path(base_path, full_path):
-        abort(404)
+        print(f"[调试] 安全检查失败: 请求的路径 '{full_path}' 不在基础路径 '{base_path}' 下")
+        abort(403) # 使用 403 Forbidden 更合适
         
+    if not os.path.exists(full_path):
+        print(f"[调试] 文件未找到: {full_path}")
+        abort(404)
+
     directory = os.path.dirname(full_path)
     filename = os.path.basename(full_path)
+    
+    # --- 关键修改：为不同字幕格式设置正确的MIME类型 ---
+    if file_ext in logic.SUBTITLE_EXTENSIONS:
+        mimetype = 'text/plain' # 默认值
+        if file_ext == '.vtt':
+            mimetype = 'text/vtt'
+        elif file_ext == '.srt':
+            # 'application/x-subrip' 是一个更具体的类型，但 'text/plain' 也被广泛接受
+            mimetype = 'text/plain' 
+        
+        print(f"[调试] 发送字幕文件: '{filename}'，MIME类型: '{mimetype}'")
+        return send_from_directory(
+            directory,
+            filename,
+            mimetype=mimetype,
+            as_attachment=False # 确保浏览器内联显示而不是下载
+        )
+    
+    # 对于其他文件，使用默认的发送方式
+    # print(f"[调试] 发送普通媒体文件: '{filename}'")
     return send_from_directory(directory, filename)
 
 @app.route('/api/open_folder')
@@ -245,9 +274,12 @@ def api_structured_stats():
     """API端点：获取按文件结构组织的访问统计数据。"""
     combined_key_map = {}
     all_root_paths = []
+    # --- 核心修改点: 在构建 key_map 时同时存入 mode ---
     for mode in MODES_CONFIG:
         load_resources_for_mode(mode)
-        combined_key_map.update(MODE_RESOURCES[mode]['key_map'])
+        # 现在的 value 是一个包含 path 和 mode 的字典
+        for key, path in MODE_RESOURCES[mode]['key_map'].items():
+            combined_key_map[key] = {'path': path, 'mode': mode}
         all_root_paths.append(get_paths_for_mode(mode)[0])
 
     stats_data = logic.get_structured_stats_data(
@@ -329,6 +361,11 @@ def api_generate_covers():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/test')
+def test_page():
+    """Route to serve the minimal test page."""
+    return render_template('test.html')
 
 # 这个路由会自动在 templates/stats.html 找到文件
 @app.route('/stats')

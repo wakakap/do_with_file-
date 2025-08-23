@@ -228,6 +228,8 @@
             padding: 40px;
             gap: 20px;
             background: #181818;
+            height: 100vh; /* 将容器高度限制为整个视口高度 */
+            box-sizing: border-box; /* 确保 padding 不会增加额外的高度 */
         }
         .anime-player-container {
             flex-grow: 1;
@@ -257,12 +259,13 @@
         }
         .episode-list-container {
             flex-shrink: 0;
-            width: 320px;
+            width: 200px;
             background-color: #121212;
             border-radius: 8px;
-            padding: 20px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
+            max-height: calc(100% - 45px); /* 设置最大高度，减去标题的近似高度和边距 */
         }
         #anime-title-text {
             margin: 0 0 15px 0;
@@ -390,6 +393,7 @@
             </div>
             <div id="anime-controls-wrapper">
                  <button id="toggle-subtitle-btn" class="button">隐藏字幕</button>
+                 <select id="subtitle-selector-btn" class="button" style="display: none;"></select>
             </div>
         </div>
         <div class="episode-list-container">
@@ -456,6 +460,8 @@
         const maintenanceMenu = document.getElementById('maintenance-menu');
         const generateCoversBtn = document.getElementById('generate-covers-btn');
         const editTagsBtn = document.getElementById('edit-tags-btn');
+        // ANIME Player
+        const subtitleSelector = document.getElementById('subtitle-selector-btn');
 
         // --- 状态对象 ---
         let state = {
@@ -480,9 +486,8 @@
         };
         let animePlayerState = {
             baseMediaPath: '',
-            videos: [],
-            subtitles: [],
-            currentIndex: -1,
+            episodeTree: [], // 新增：存储整个剧集树
+            currentPlayingPath: null, // 新增：存储当前播放视频的路径
             areSubtitlesVisible: true,
         };
         let activeImports = {};
@@ -493,6 +498,49 @@
         let epubKeyListenerAbortController = null; 
 
         // --- 核心功能函数 ---
+        function truncateFilename(name) {
+            const nameNoExt = name.replace(/\.\w+$/, '');
+            const match = nameNoExt.match(/\d+/); // 查找第一个数字序列
+
+            if (!match) {
+                // 如果没有数字，提供一个备用截断方案
+                return nameNoExt.length > 20 ? nameNoExt.substring(0, 17) + '...' : nameNoExt;
+            }
+
+            const numberStr = match[0];
+            const index = match.index;
+            
+            // 计算截取范围：数字前后各5个字符
+            const start = Math.max(0, index - 5);
+            const end = Math.min(nameNoExt.length, index + numberStr.length + 5);
+            
+            let result = nameNoExt.substring(start, end);
+            
+            // 如果前面或后面有更多字符，则添加省略号
+            if (start > 0) {
+                result = '…' + result;
+            }
+            if (end < nameNoExt.length) {
+                result = result + '…';
+            }
+            return result;
+        }
+
+        function findFirstVideo(nodes) {
+            for (const node of nodes) {
+                if (node.type === 'video') {
+                    return node;
+                }
+                if (node.type === 'directory') {
+                    const found = findFirstVideo(node.children);
+                    if (found) {
+                        return found;
+                    }
+                }
+            }
+            return null;
+        }
+
         function applyImageViewerTransforms() {
             if (!state.gallery.isOpen) return;
             const { rotationAngle } = viewerState;
@@ -1255,21 +1303,22 @@
         function openAnimeView(fullPath, mediaPath, nameNoExt) {
             const url = `/api/anime_details?mode=ANIME&path=${encodeURIComponent(fullPath)}`;
             fetch(url).then(res => res.json()).then(details => {
-                if (details && !details.error && details.videos.length > 0) {
+                if (details && !details.error && details.tree && details.tree.length > 0) {
                     animePlayerState.baseMediaPath = mediaPath;
-                    animePlayerState.videos = details.videos;
-                    animePlayerState.subtitles = details.subtitles;
-                    animePlayerState.currentIndex = -1;
-                    animePlayerState.areSubtitlesVisible = true; // 默认开启字幕
+                    animePlayerState.episodeTree = details.tree;
+                    animePlayerState.currentPlayingPath = null;
 
                     animeTitleText.textContent = nameNoExt;
-                    buildEpisodeListUI();
+                    buildEpisodeListUI(details.tree); // 将新的树数据传递给构建函数
 
                     animeView.classList.add('active');
                     document.body.style.overflow = 'hidden';
 
-                    // 默认播放第一集
-                    playEpisode(0);
+                    // 自动播放找到的第一个视频
+                    const firstVideo = findFirstVideo(details.tree);
+                    if (firstVideo) {
+                        playEpisode(firstVideo.path, firstVideo.subtitles);
+                    }
 
                 } else {
                     alert('这个文件夹是空的或加载失败！');
@@ -1287,92 +1336,129 @@
             if (oldTrack) oldTrack.remove();
         }
 
-        function buildEpisodeListUI() {
-            episodeListUI.innerHTML = '';
-            animePlayerState.videos.forEach((videoName, index) => {
+        function buildEpisodeListUI(nodes) {
+            episodeListUI.innerHTML = ''; // 清空旧列表
+
+            // 递归函数，用于创建列表中的每个节点（文件或文件夹）
+            function createNode(node, parentElement) {
                 const li = document.createElement('li');
-                li.className = 'episode-item';
-                li.dataset.index = index;
-                // 显示不带扩展名的文件名
-                li.textContent = `${index + 1}. ${videoName.replace(/\.\w+$/, '')}`;
-                li.title = videoName;
-                episodeListUI.appendChild(li);
-            });
+                
+                if (node.type === 'directory') {
+                    li.className = 'episode-item episode-folder';
+                    li.textContent = `📁 ${node.name}`; // 添加文件夹图标
+                    li.title = node.name;
+                    
+                    const childrenUl = document.createElement('ul');
+                    childrenUl.style.display = 'none'; // 子列表默认隐藏
+                    childrenUl.style.paddingLeft = '20px';
+                    childrenUl.style.listStyle = 'none';
+
+                    node.children.forEach(childNode => createNode(childNode, childrenUl));
+                    
+                    li.appendChild(childrenUl);
+                    
+                    // 【重要修改】移除了此处单独的 li.addEventListener('click', ...)
+
+                } else if (node.type === 'video') {
+                    // 【重要修改】为视频项添加了 'episode-video' 类
+                    li.className = 'episode-item episode-video';
+                    li.textContent = truncateFilename(node.name); // 使用新规则显示文件名
+                    li.title = node.name; // 鼠标悬停时显示完整文件名
+                    
+                    li.dataset.videoPath = node.path;
+                    if (node.subtitles && node.subtitles.length > 0) {
+                        li.dataset.subtitles = JSON.stringify(node.subtitles);
+                    }
+                    
+                    // 如果是当前播放的视频，添加高亮
+                    if (node.path === animePlayerState.currentPlayingPath) {
+                        li.classList.add('playing');
+                    }
+                }
+                
+                parentElement.appendChild(li);
+            }
+            
+            nodes.forEach(node => createNode(node, episodeListUI));
         }
 
-        function playEpisode(index) {
-            if (index < 0 || index >= animePlayerState.videos.length) return;
+        function loadSubtitleTrack(subtitlePath) {
+            // 移除所有现有的字幕轨道，确保干净
+            const existingTracks = currentAnimeVideo.querySelectorAll('track');
+            existingTracks.forEach(track => track.remove());
 
-            animePlayerState.currentIndex = index;
-            
-            // 更新UI高亮
-            document.querySelectorAll('#episode-list-ui .episode-item').forEach((item, i) => {
-                item.classList.toggle('playing', i === index);
-            });
-
-            // 设置视频源
-            const videoName = animePlayerState.videos[index];
-            currentAnimeVideo.src = `/api/media/ANIME/pages/${animePlayerState.baseMediaPath}/${encodeURIComponent(videoName)}`;
-
-            // --- 核心修改：更可靠的字幕处理 ---
-            // 移除上一个视频的字幕轨道
-            const oldTrack = currentAnimeVideo.querySelector('track');
-            if (oldTrack) oldTrack.remove();
-
-            // 强制浏览器重新评估 TextTrack 列表
-            // 某些浏览器在移除轨道后不会立即更新 textTracks 集合
-            while (currentAnimeVideo.textTracks.length > 0) {
-                currentAnimeVideo.textTracks[0].mode = 'disabled';
-            }
-
-            // 查找与当前视频序号相同的字幕文件
-            if (animePlayerState.subtitles.length > index) {
-                const subtitleName = animePlayerState.subtitles[index];
-                const subtitleUrl = `/api/media/ANIME/pages/${animePlayerState.baseMediaPath}/${encodeURIComponent(subtitleName)}`;
-                
-                const trackEl = document.createElement('track');
-                trackEl.kind = 'subtitles';
-                trackEl.label = 'Default';
-                trackEl.srclang = 'zh';
-                trackEl.src = subtitleUrl;
-                
-                // **关键修复点**: 添加 onload 事件监听器
-                // 当 track 文件成功加载后，这个事件会被触发
-                trackEl.addEventListener('load', function() {
-                    console.log("字幕轨道已加载！");
-                    // 将第一个（也是唯一一个）文本轨道的模式设置为 'showing'
-                    // 这是强制显示字幕的命令
-                    if (currentAnimeVideo.textTracks[0]) {
-                        currentAnimeVideo.textTracks[0].mode = 'showing';
-                        // 更新状态和按钮文本
-                        animePlayerState.areSubtitlesVisible = true;
-                        toggleSubtitleBtn.textContent = '隐藏字幕';
-                    }
-                });
-                
-                // 监控错误
-                trackEl.addEventListener('error', function() {
-                    console.error("字幕轨道加载失败！");
-                });
-
-                currentAnimeVideo.appendChild(trackEl);
-                
-                // 恢复默认的字幕显示状态
-                // 这将在 track 加载后由 onload 事件覆盖
-                toggleSubtitleBtn.textContent = animePlayerState.areSubtitlesVisible ? '隐藏字幕' : '显示字幕';
-
-            } else {
-                // 如果没有找到字幕文件
+            if (!subtitlePath) {
+                console.log('[调试] 无字幕轨道可加载。');
                 toggleSubtitleBtn.textContent = '无可用字幕';
+                toggleSubtitleBtn.disabled = true;
+                return;
             }
 
-            // 在视频开始播放时，再次检查并应用字幕状态
-            // 这是一个额外的保险措施
-            currentAnimeVideo.oncanplay = () => {
-                if(currentAnimeVideo.textTracks.length > 0) {
+            const subtitleUrl = `/api/media/ANIME/pages/${animePlayerState.baseMediaPath}/${encodeURIComponent(subtitlePath)}`;
+            console.log(`[调试] 正在加载字幕轨道: ${subtitleUrl}`);
+
+            const trackEl = document.createElement('track');
+            trackEl.kind = 'subtitles';
+            trackEl.label = subtitlePath.split('/').pop(); // 使用文件名作为标签
+            trackEl.srclang = 'zh';
+            trackEl.src = subtitleUrl;
+            trackEl.default = true;
+
+            currentAnimeVideo.appendChild(trackEl);
+
+            // 等待浏览器处理新轨道
+            setTimeout(() => {
+                if (currentAnimeVideo.textTracks.length > 0) {
+                    // 激活该轨道
                     currentAnimeVideo.textTracks[0].mode = animePlayerState.areSubtitlesVisible ? 'showing' : 'hidden';
+                    console.log(`[调试] 字幕轨道 "${trackEl.label}" 加载成功，模式为: ${currentAnimeVideo.textTracks[0].mode}`);
                 }
-            };
+            }, 200);
+
+            toggleSubtitleBtn.textContent = animePlayerState.areSubtitlesVisible ? '隐藏字幕' : '显示字幕';
+            toggleSubtitleBtn.disabled = false;
+        }
+
+        function playEpisode(videoPath, subtitles = []) {
+            if (!videoPath) return;
+            
+            // --- 视频加载逻辑 (与之前类似) ---
+            currentAnimeVideo.onloadedmetadata = null;
+            currentAnimeVideo.pause();
+            currentAnimeVideo.src = '';
+            currentAnimeVideo.load();
+            animePlayerState.currentPlayingPath = videoPath;
+            currentAnimeVideo.src = `/api/media/ANIME/pages/${animePlayerState.baseMediaPath}/${encodeURIComponent(videoPath)}`;
+            
+            // --- 新增：管理字幕选择器 UI ---
+            const selector = document.getElementById('subtitle-selector-btn');
+            selector.innerHTML = ''; // 清空旧选项
+
+            if (subtitles.length > 0) {
+                selector.style.display = 'inline-block'; // 显示选择器
+                subtitles.forEach(subPath => {
+                    const option = document.createElement('option');
+                    option.value = subPath;
+                    option.textContent = subPath.split('/').pop(); // 显示文件名
+                    selector.appendChild(option);
+                });
+                // 自动加载并显示第一个字幕
+                loadSubtitleTrack(subtitles[0]);
+            } else {
+                selector.style.display = 'none'; // 隐藏选择器
+                // 确保没有残留的字幕轨道
+                loadSubtitleTrack(null);
+            }
+            
+            // --- UI 更新和播放 ---
+            document.querySelectorAll('#episode-list-ui .episode-item.playing').forEach(item => {
+                item.classList.remove('playing');
+            });
+            const playingItem = episodeListUI.querySelector(`li[data-video-path="${CSS.escape(videoPath)}"]`);
+            if (playingItem) playingItem.classList.add('playing');
+            
+            currentAnimeVideo.load();
+            currentAnimeVideo.play().catch(error => console.error("视频播放失败:", error));
         }
 
         function toggleSubtitles() {
@@ -1480,9 +1566,29 @@
         animeViewCloseBtn.addEventListener('click', closeAnimeView);
         toggleSubtitleBtn.addEventListener('click', toggleSubtitles);
         episodeListUI.addEventListener('click', (e) => {
-            const episodeItem = e.target.closest('.episode-item');
-            if (episodeItem && episodeItem.dataset.index) {
-                playEpisode(parseInt(episodeItem.dataset.index, 10));
+            // 找到用户实际点击的最内层的列表项（可能是文件夹或视频）
+            const clickedItem = e.target.closest('.episode-item');
+
+            // 如果点击的不是列表项，则不执行任何操作
+            if (!clickedItem) {
+                return;
+            }
+
+            // 【分支逻辑 1】如果点击的是一个视频项
+            if (clickedItem.classList.contains('episode-video')) {
+                const videoPath = clickedItem.dataset.videoPath;
+                const subtitlesAttr = clickedItem.dataset.subtitles;
+                const subtitles = subtitlesAttr ? JSON.parse(subtitlesAttr) : [];
+                playEpisode(videoPath, subtitles);
+            } 
+            // 【分支逻辑 2】如果点击的是一个文件夹项
+            else if (clickedItem.classList.contains('episode-folder')) {
+                const childrenUl = clickedItem.querySelector('ul');
+                if (childrenUl) {
+                    const isVisible = childrenUl.style.display === 'block';
+                    childrenUl.style.display = isVisible ? 'none' : 'block';
+                    clickedItem.classList.toggle('expanded', !isVisible);
+                }
             }
         });
         albumViewCloseBtn.addEventListener('click', closeAlbumView);
@@ -1577,12 +1683,21 @@
             }
         });
 
+        subtitleSelector.addEventListener('change', (event) => {
+            const newSubtitlePath = event.target.value;
+            if (newSubtitlePath) {
+                // 当用户选择新字幕时，调用 loadSubtitleTrack 来切换
+                loadSubtitleTrack(newSubtitlePath);
+            }
+        });
+
         // --- Initial load ---
         async function initialize() {
             state.tagsData = await fetch('/api/tags').then(res => res.json()).catch(() => ({}));
             browse();
         }
         initialize();
+        
     });
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
